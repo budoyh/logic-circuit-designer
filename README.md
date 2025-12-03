@@ -8,7 +8,7 @@ Logic Circuit Designer (逻辑电路自动生成器)
 
 A powerful, web-based logic circuit designer and generator. Supports drag-and-drop design, boolean expression synthesis, AI-assisted generation, and custom chip creation.
 
-English | 中文
+[English](#english) | [中文](#chinese)
 
 </div>
 
