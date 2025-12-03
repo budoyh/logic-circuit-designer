@@ -1,14 +1,11 @@
-Logic Circuit Designer (逻辑电路自动生成器)
-![GitHub Logo](screenshots/show1.png)
-![GitHub Logo](screenshots/show2.png)
-![GitHub Logo](screenshots/show3.png)
-![GitHub Logo](screenshots/show4.png)
+Logic Circuit Designer (逻辑电路自动生成器)\
+![GitHub Logo](screenshots/advocate1.png)
 
 <div align="center">
 
 A powerful, web-based logic circuit designer and generator. Supports drag-and-drop design, boolean expression synthesis, AI-assisted generation, and custom chip creation.
 
-[English](#english) | [中文](#chinese)
+[English](#english) | [中文](#chinese) | [演示图片/typical drawing](#show_time) | [一键使用工具/One-click use](https://budoyh.github.io/logic-circuit-designer/)
 
 </div>
 
@@ -221,3 +218,10 @@ GitHub: budoyh
 <div align="center">
 <p>Made with ❤️ by Budoyh</p>
 </div>
+
+<a id="show_time"></a>
+
+![GitHub Logo](screenshots/show1.png)
+![GitHub Logo](screenshots/show2.png)
+![GitHub Logo](screenshots/show3.png)
+![GitHub Logo](screenshots/show4.png)
