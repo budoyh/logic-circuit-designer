@@ -2,185 +2,222 @@ Logic Circuit Designer (逻辑电路自动生成器)
 ![GitHub Logo](screenshots/show1.png)
 ![GitHub Logo](screenshots/show2.png)
 ![GitHub Logo](screenshots/show3.png)
+![GitHub Logo](screenshots/show4.png)
 
-English Version ↓
+<div align="center">
 
-Logic Circuit Designer 是一个基于 React 的可视化逻辑电路设计与仿真工具。它专为数字电路实验报告设计，能够将复杂的布尔逻辑表达式瞬间转换为标准、美观、可导出的电路逻辑图。
+A powerful, web-based logic circuit designer and generator. Supports drag-and-drop design, boolean expression synthesis, AI-assisted generation, and custom chip creation.
 
-🎓 特别说明：本项目非常适合用于 郑州大学 (ZZU) 数字电路实验课 的实验报告绘图。生成的图片清晰、规范，且支持“极简学术风格”，完美适配实验报告格式。
+English | 中文
 
-✨ 核心功能 (Features)
+</div>
 
-1. 🚀 智能生成 (Auto-Generation)
+<a id="english"></a>
 
-多路输入/输出：支持同时生成多个输出方程，例如全加器、译码器。
+🇬🇧 English Documentation
 
-Sum = (A XOR B) XOR Cin
-Cout = (A AND B) OR (Cin AND (A XOR B))
+Introduction
 
+Logic Circuit Gen is a React-based application designed for students, educators, and electronics enthusiasts. It allows users to visualize digital logic circuits, generate schematics automatically from boolean algebra, and create custom integrated circuits (ICs).
 
-AI 辅助转换：内置 Prompt 生成器，配合 AI (ChatGPT/Claude) 可将任意简写公式（如 Y = AB + C'D）转换为标准格式。
+Key Features
 
-2. 🎨 完美的绘图引擎
+🎨 Visual Designer: Intuitive drag-and-drop interface with Manhattan wire routing.
 
-智能防重叠布线：采用“通道分流”技术，即使是复杂的跨层级连接，线条也能自动避让组件，清晰不打结。
+⚡ Smart Generation: Automatically synthesize circuit diagrams from boolean logic expressions (e.g., Y = AB + C).
 
-无限画布：支持鼠标滚轮缩放 (Zoom) 和鼠标拖拽平移 (Pan)，轻松应对超大规模逻辑图。
+🤖 AI Assistant: Built-in prompt generator to leverage ChatGPT/Claude for converting complex logic into compatible formats.
 
-极简学术风格：一键切换“极简 I/O 模式”，将输入输出简化为各类教材常用的空心圆点风格。
+🧩 Custom Chips: Create your own reusable ICs with the "Custom Chip Wizard". Define input/output pins and chip width.
 
-3. 📤 实验报告友好
+📦 Component Library:
 
-高清导出：一键导出高分辨率 PNG 图片。
+Basic Gates: AND, OR, NOT, NAND, NOR, XOR, XNOR.
 
-纯净模式：导出时自动移除所有 UI 辅助元素（如删除按钮、网格背景），直接插入 Word 文档即可使用。
+ICs: 74LS138 (Decoder), 74LS153 (Multiplexer), 4-Input NAND.
 
-🛠️ 使用指南 (User Guide)
+I/O: Switches, LEDs, VCC, GND.
 
-输入公式：
-在左侧输入框中输入逻辑表达式。支持 AND, OR, NOT, NAND, NOR, XOR, NAND4 等标准门电路。
+🖼️ Export: High-quality PNG export for reports and documentation.
 
-自定义门电路：
-在右侧勾选你允许使用的门电路（例如只允许使用与非门 NAND），系统会根据约束自动综合逻辑。
+🛠️ Customization: Toggle "Minimalist Style" for academic-style nodes.
 
-调整布局：
+Quick Start Guide
 
-移动：按住画布空白处拖动。
+Adding Components: Drag gates from the left sidebar onto the canvas.
 
-缩放：使用鼠标滚轮。
+Wiring: Click a connection point (port) on one component, then click a target port on another to create a wire.
 
-微调：可以手动拖拽个别组件微调位置。
+Navigation:
 
-导出：
-点击右上角的“图片”图标，保存 PNG 文件。
+Zoom: Use the mouse wheel.
 
-💻 本地运行 (Development)
+Pan: Click and drag on empty space.
 
-如果你想在本地运行或修改此项目，请按照以下步骤操作：
+Deleting: Hover over a component and click the red delete icon that appears above it.
 
-环境要求
+Advanced Features
 
-Node.js (推荐 v16+)
+1. Auto Generation (Smart Gen)
 
-Git
+Convert boolean formulas directly into circuits.
 
-安装步骤
+Click the Auto Gen (Wand) button.
 
-克隆仓库
+Enter equations like F = A'B + C.
 
-git clone [https://github.com/你的用户名/logic-circuit-designer.git](https://github.com/你的用户名/logic-circuit-designer.git)
-cd logic-circuit-designer
+Click Generate Circuit.
 
+2. AI Assistant
 
-安装依赖
+If you have complex logic or natural language descriptions:
 
-npm install
+Open the Auto Gen panel.
 
+Click AI Assistant.
 
-启动开发服务器
+Copy the generated prompt.
 
-npm run dev
+Send it to an LLM (ChatGPT, Claude, etc.).
 
+Paste the returned code back into the generator input.
 
-打开浏览器访问 http://localhost:5173 即可。
+3. Custom Chips
 
-🛠️ 技术栈 (Tech Stack)
+Click New Chip.
 
-Core: React 18 + Vite
+Enter a name (e.g., "Full Adder").
 
-Styling: Tailwind CSS
+Define Input pins (comma-separated, e.g., A, B, Cin).
 
-Graphics: Native SVG + Math-based Routing Algorithms
+Define Output pins (e.g., Sum, Cout).
 
-Icons: Lucide React
-
-🤝 贡献 (Contributing)
-
-欢迎 ZZU 的同学们提交 Issue 或 Pull Request 来改进这个工具！
-如果你发现生成的电路图有 Bug，请截图并在 Issue 中反馈。
-
-<a name="logic-circuit-designer-english"></a>
-
-Logic Circuit Designer (English)
-
-Logic Circuit Designer is a React-based visual tool for designing and simulating logic circuits. Specifically designed for Digital Electronics Lab Reports, it instantly converts complex boolean expressions into standard, aesthetic, and exportable logic circuit diagrams.
-
-🎓 Note: This tool is highly recommended for Zhengzhou University (ZZU) students for their Digital Electronics lab reports. It generates clear, standardized diagrams and supports a "Minimalist Academic Style" perfect for reports.
-
-✨ Features
-
-1. 🚀 Intelligent Auto-Generation
-
-Multi-Input/Output Support: Generate circuits for multiple equations simultaneously (e.g., Full Adder, Decoder).
-
-AI-Assisted Conversion: Built-in Prompt Generator allows you to use AI (ChatGPT/Claude) to convert any shorthand formula (like Y = AB + C'D) into the standard format required by the tool.
-
-2. 🎨 Advanced Drawing Engine
-
-Smart Routing: Features "Channel Routing" technology to prevent line overlaps. Even in complex multi-level connections, wires automatically route around components.
-
-Infinite Canvas: Supports Zooming (mouse wheel) and Panning (drag), making it easy to handle large-scale diagrams.
-
-Minimalist Academic Style: Toggle "Simple I/O Mode" to switch inputs/outputs to the hollow circle style commonly used in textbooks.
-
-3. 📤 Report Friendly
-
-HD Export: One-click export to high-resolution PNG images.
-
-Clean Mode: Automatically removes UI elements (like delete buttons, grid background) during export, ready for insertion into Word documents.
-
-🛠️ User Guide
-
-Input Formulas:
-Enter your boolean logic expressions in the left panel. Supports standard gates: AND, OR, NOT, NAND, NOR, XOR, NAND4, etc.
-
-Customize Gates:
-Select allowed gates on the right panel (e.g., restrict to only NAND gates). The system will automatically synthesize the logic based on your constraints.
-
-Adjust Layout:
-
-Pan: Drag on empty space.
-
-Zoom: Use mouse wheel.
-
-Tweak: Drag individual components to fine-tune positions.
-
-Export:
-Click the "Image" icon on the top right to save as PNG.
-
-💻 Local Development
-
-Follow these steps to run the project locally:
-
-Prerequisites
-
-Node.js (v16+ recommended)
-
-Git
+Save and find your new chip in the My Chips section of the sidebar.
 
 Installation
 
-Clone the repository
+This project is built with React.
 
-git clone [https://github.com/your-username/logic-circuit-designer.git](https://github.com/your-username/logic-circuit-designer.git)
-cd logic-circuit-designer
+# 1. Clone the repository
+git clone [https://github.com/budoyh/logic-circuit-designer.git](https://github.com/budoyh/logic-circuit-designer.git)
 
-
-Install dependencies
-
+# 2. Install dependencies
 npm install
 
-
-Start development server
-
+# 3. Run development server
 npm run dev
 
 
-Open your browser and visit http://localhost:5173.
+Author
 
-🤝 Contributing
+Budoyh (不懂) Email: budo0422@outlook.com
 
-Contributions, issues, and feature requests are welcome!
-If you find a bug in the generated circuit, please take a screenshot and file an issue.
+GitHub: budoyh
 
-Created with ❤️ for Digital Electronics.
+<a id="chinese"></a>
+
+🇨🇳 中文文档 (Chinese Documentation)
+
+简介
+
+Logic Circuit Gen (逻辑电路生成器) 是一个基于 React 开发的网页版工具，专为学生、教师和电子爱好者设计。它支持可视化拖拽设计数字逻辑电路，能够通过布尔表达式自动生成电路图，并支持封装自定义芯片。
+
+核心功能
+
+🎨 可视化设计: 直观的拖拽操作，支持曼哈顿风格的自动连线。
+
+⚡ 智能生成: 输入布尔表达式（如 Y = AB + C），自动合成对应的门电路图。
+
+🤖 AI 辅助: 内置提示词生成器，帮助你利用 ChatGPT/Claude 将自然语言或复杂逻辑转换为生成器可识别的格式。
+
+🧩 自定义芯片: 通过“新建芯片向导”封装自己的元器件，支持自定义引脚名称和芯片宽度。
+
+📦 组件库:
+
+基础门: AND, OR, NOT, NAND, NOR, XOR, XNOR。
+
+集成电路 (ICs): 74LS138 (译码器), 74LS153 (数据选择器), 4输入 NAND。
+
+电源/地: VCC, GND。
+
+🖼️ 导出图片: 支持一键导出高清 PNG 图片，方便用于作业或论文。
+
+🛠️ 外观设置: 支持切换“极简节点样式”（学术风格空心圆点）。
+
+快速上手
+
+添加元件: 从左侧工具栏按住并拖动元件到画布上。
+
+连线: 点击元件的一个端口（圆点），然后点击另一个元件的端口即可连接。
+
+画布操作:
+
+缩放: 滚动鼠标滚轮。
+
+平移: 按住画布空白处拖动。
+
+删除: 鼠标悬停在元件上，点击上方出现的红色删除图标。
+
+进阶功能
+
+1. 智能生成 (Smart Gen)
+
+直接将公式转换为电路。
+
+点击顶部 智能生成 按钮。
+
+输入公式，例如 F = A'B + C 或 Y = AND(A, B)。
+
+点击 生成电路图。
+
+2. AI 辅助生成
+
+如果你有复杂的逻辑描述：
+
+打开 智能生成 面板。
+
+点击 AI 辅助生成。
+
+复制弹出的提示词（Prompt）。
+
+发送给 AI 模型（如 ChatGPT, Claude, Gemini）。
+
+将 AI 返回的代码粘贴回输入框。
+
+3. 自定义芯片 (My Chips)
+
+点击顶部 新建芯片 按钮。
+
+输入芯片名称（例如 "全加器"）。
+
+定义左侧输入引脚（用逗号分隔，如 A, B, Cin）。
+
+定义右侧输出引脚（如 Sum, Cout）。
+
+保存后，新芯片将出现在左侧工具栏的 我的芯片 区域。
+
+安装与运行
+
+本项目使用 React 构建。
+
+# 1. 克隆项目
+git clone [https://github.com/budoyh/logic-circuit-designer.git](https://github.com/budoyh/logic-circuit-designer.git)
+
+# 2. 安装依赖
+npm install
+
+# 3. 启动开发服务器
+npm run dev
+
+
+作者信息
+
+作者: 不懂 (Budoyh)
+
+联系邮箱: budo0422@outlook.com
+
+GitHub: budoyh
+
+<div align="center">
+<p>Made with ❤️ by Budoyh</p>
+</div>
