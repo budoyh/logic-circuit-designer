@@ -1,13 +1,12 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Trash2, RotateCcw, Download, Wand2, X, HelpCircle, Layout, Settings, Image as ImageIcon, AlertTriangle, ArrowRightLeft, MessageSquare, Eye, CheckSquare, Square, Copy, ZoomIn, ZoomOut, Github, Grid, Cpu, Zap, Globe, User, BookOpen, ExternalLink, PlusSquare, Save, Layers } from 'lucide-react';
+import { Trash2, RotateCcw, Download, Wand2, X, HelpCircle, Layout, Settings, Image as ImageIcon, AlertTriangle, ArrowRightLeft, MessageSquare, Eye, CheckSquare, Square, Copy, ZoomIn, ZoomOut, Github, Grid, Cpu, Zap, Globe, User, BookOpen, ExternalLink, PlusSquare, Save, Layers, FileText, Book, Video, FileText as FileTextIcon } from 'lucide-react';
 
 /**
- * 逻辑电路设计器 v6.4.2
+ * 逻辑电路设计器 v6.6.1
  * 更新日志:
- * 1. 修复左侧工具栏 74LS138 和 74LS153 图标不显示的问题。
- * 2. 74LS138 增加低电平有效 (Active Low) 的视觉标记 (文字上划线)。
- * 3. 优化 AI 提示词生成逻辑：根据当前界面语言生成对应语言的 Prompt。
- * 4. 欢迎弹窗增加作者主页文档引导及联系邮箱。
+ * 1. 升级“使用手册”弹窗：视频演示现在支持多语言切换。
+ * 2. 视频源将根据当前语言自动切换为 demo-zh.mp4 或 demo-en.mp4。
+ * 3. 语言切换按钮现在对“文档”和“视频”标签页同时生效。
  */
 
 // --- 多语言配置 ---
@@ -62,6 +61,12 @@ const TRANSLATIONS = {
     xnor: "XNOR (同或)",
     aiPromptTitle: "AI 生成提示词",
     aiPromptDesc: "将以下提示词发送给 ChatGPT/Claude/Gemini，然后将返回的代码粘贴到左侧输入框：",
+    manual: "教程 & 演示",
+    manualTitle: "使用指南",
+    downloadPdf: "如果无法预览，请点击这里下载 PDF",
+    tabPdf: "文档手册",
+    tabVideo: "视频演示",
+    videoNotice: "未找到演示视频。请确保 public 文件夹中包含 demo-zh.mp4。",
   },
   en: {
     title: "Logic Circuit Gen",
@@ -113,6 +118,12 @@ const TRANSLATIONS = {
     xnor: "XNOR",
     aiPromptTitle: "AI Generation Prompt",
     aiPromptDesc: "Send this prompt to ChatGPT/Claude/Gemini, then paste the code result into the input box:",
+    manual: "Guide & Demo",
+    manualTitle: "User Guide",
+    downloadPdf: "If preview fails, click here to download PDF",
+    tabPdf: "PDF Manual",
+    tabVideo: "Video Demo",
+    videoNotice: "Demo video not found. Please ensure demo-en.mp4 is in the public folder.",
   }
 };
 
@@ -146,7 +157,6 @@ const SHAPES = {
 const GATE_PATHS = { ...SHAPES, INPUT: SHAPES.INPUT_STD, OUTPUT: SHAPES.OUTPUT_STD };
 
 // Hardcoded IC SVGs
-// Update: Added overline for active low pins on 74LS138
 const IC_SVGS = {
   IC_74LS138: <g>
     <rect x="0" y="0" width="100" height="260" rx="4" fill="white" stroke="currentColor" strokeWidth={2} />
@@ -361,6 +371,9 @@ export default function LogicCircuitDesigner() {
   const [showPromptModal, setShowPromptModal] = useState(false);
   const [showWelcome, setShowWelcome] = useState(true);
   const [showChipWizard, setShowChipWizard] = useState(false); // New Wizard State
+  const [showManual, setShowManual] = useState(false); // PDF Manual State
+  const [manualLang, setManualLang] = useState('zh'); // 'zh' or 'en' for manual
+  const [manualTab, setManualTab] = useState('pdf'); // 'pdf' or 'video'
   const [aiPrompt, setAiPrompt] = useState("");
   const [view, setView] = useState({ x: 0, y: 0, k: 1 });
   const [isPanning, setIsPanning] = useState(false);
@@ -377,6 +390,13 @@ export default function LogicCircuitDesigner() {
   const [wizardData, setWizardData] = useState({ name: '', width: 100, inputStr: '', outputStr: '' });
 
   const t = TRANSLATIONS[lang];
+
+  // Sync manual language with app language when manual is opened
+  useEffect(() => {
+    if (showManual) {
+        setManualLang(lang);
+    }
+  }, [showManual, lang]);
 
   // Load custom chips on mount
   useEffect(() => {
@@ -777,7 +797,7 @@ User Input: "${expression}"`.trim();
     <>
     <div className="flex flex-col h-screen bg-slate-50 text-slate-900 font-sans selection:bg-indigo-100 selection:text-indigo-700" onMouseMove={handleGlobalMouseMove} onMouseUp={handleGlobalMouseUp} onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}>
       <div className="h-16 bg-white/90 backdrop-blur-md border-b border-slate-200 px-6 flex items-center justify-between z-20 shadow-sm relative">
-        <div className="flex items-center gap-4"><div className="bg-gradient-to-br from-indigo-600 to-violet-600 p-2.5 rounded-xl shadow-lg shadow-indigo-200"><Layout className="text-white w-5 h-5" strokeWidth={2.5} /></div><div><h1 className="text-xl font-bold tracking-tight text-slate-900">LogicCircuit <span className="text-indigo-600">Gen</span></h1><div className="flex items-center gap-2 text-xs font-medium text-slate-500 mt-0.5"><span>v6.4.2</span><span className="w-1 h-1 bg-slate-300 rounded-full"></span><span className="flex items-center gap-1">{t.by} <a href="https://github.com/budoyh" target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline font-medium">不懂</a></span><a href="https://github.com/budoyh/logic-circuit-designer" target="_blank" rel="noreferrer" className="text-slate-400 hover:text-slate-900 transition-colors ml-1" title={t.viewSource}><Github size={14} /></a></div></div></div>
+        <div className="flex items-center gap-4"><div className="bg-gradient-to-br from-indigo-600 to-violet-600 p-2.5 rounded-xl shadow-lg shadow-indigo-200"><Layout className="text-white w-5 h-5" strokeWidth={2.5} /></div><div><h1 className="text-xl font-bold tracking-tight text-slate-900">LogicCircuit <span className="text-indigo-600">Gen</span></h1><div className="flex items-center gap-2 text-xs font-medium text-slate-500 mt-0.5"><span>v6.6.1</span><span className="w-1 h-1 bg-slate-300 rounded-full"></span><span className="flex items-center gap-1">{t.by} <a href="https://github.com/budoyh" target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline font-medium">不懂</a></span><a href="https://github.com/budoyh/logic-circuit-designer" target="_blank" rel="noreferrer" className="text-slate-400 hover:text-slate-900 transition-colors ml-1" title={t.viewSource}><Github size={14} /></a></div></div></div>
         <div className="flex items-center gap-3">
            {/* New Chip Button */}
            <button onClick={() => setShowChipWizard(true)} className="flex items-center gap-2 px-3 py-2 rounded-lg transition-all border text-sm font-medium bg-white text-slate-600 border-slate-200 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-600"><PlusSquare size={16} /><span>{t.newChip}</span></button>
@@ -785,10 +805,98 @@ User Input: "${expression}"`.trim();
            <button onClick={() => setLang(l => l === 'zh' ? 'en' : 'zh')} className="flex items-center gap-2 px-3 py-2 rounded-lg transition-all border text-sm font-medium bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300"><Globe size={16} /><span>{t.language}</span></button>
            <button onClick={() => setShowAppearance(!showAppearance)} className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all border text-sm font-medium ${showAppearance ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300'}`}><Eye size={16} /><span>{t.appearance}</span></button>
            {showAppearance && (<div className="absolute top-20 right-40 bg-white/95 backdrop-blur-xl p-4 rounded-2xl shadow-xl border border-white/20 ring-1 ring-black/5 w-64 z-50 animate-in fade-in zoom-in-95 origin-top-right"><h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2"><Settings size={12}/> {t.settings}</h4><div className="flex items-center justify-between p-3 hover:bg-slate-50 rounded-xl cursor-pointer transition-colors group" onClick={() => setAppearance(prev => ({ ...prev, simpleIO: !prev.simpleIO }))}><span className="text-sm font-medium text-slate-700 group-hover:text-indigo-700 transition-colors">{t.simpleNode}</span>{appearance.simpleIO ? <CheckSquare className="text-indigo-600 w-5 h-5"/> : <Square className="text-slate-300 w-5 h-5 group-hover:text-slate-400"/>}</div><p className="text-[10px] text-slate-400 mt-2 px-2 leading-relaxed">{t.simpleNodeDesc}</p></div>)}
+
+           {/* Manual PDF Button */}
+           <button onClick={() => setShowManual(true)} className="flex items-center gap-2 px-3 py-2 rounded-lg transition-all border text-sm font-medium bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300"><Book size={16} /><span>{t.manual}</span></button>
+
            <button onClick={() => setShowGenerator(true)} className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-lg font-medium shadow-md shadow-indigo-200 hover:shadow-lg hover:shadow-indigo-300 hover:-translate-y-0.5 transition-all active:translate-y-0 active:shadow-none"><Wand2 size={16} /><span>{t.smartGen}</span></button>
            <button onClick={() => setShowWelcome(true)} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"><HelpCircle size={20} /></button>
         </div>
       </div>
+
+      {/* Manual Modal */}
+      {showManual && (
+        <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm z-[80] flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl w-[90vw] h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 border border-white/20 ring-1 ring-black/5">
+             <div className="flex justify-between items-center p-4 border-b border-slate-100 bg-slate-50">
+               <div className="flex items-center gap-4">
+                 <h3 className="font-bold text-slate-800 flex items-center gap-2"><BookOpen size={18} className="text-indigo-500"/> {t.manualTitle}</h3>
+
+                 {/* Tabs for PDF vs Video */}
+                 <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200">
+                    <button
+                      onClick={() => setManualTab('pdf')}
+                      className={`flex items-center gap-2 px-3 py-1 rounded-md text-xs font-bold transition-all ${manualTab === 'pdf' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                      <FileTextIcon size={14}/> {t.tabPdf}
+                    </button>
+                    <button
+                      onClick={() => setManualTab('video')}
+                      className={`flex items-center gap-2 px-3 py-1 rounded-md text-xs font-bold transition-all ${manualTab === 'video' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                      <Video size={14}/> {t.tabVideo}
+                    </button>
+                 </div>
+
+                 {/* Language Toggles (Visible for Both PDF and Video) */}
+                 <div className="flex items-center gap-1 bg-slate-200/50 p-1 rounded-lg">
+                    <button
+                      onClick={() => setManualLang('zh')}
+                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${manualLang === 'zh' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                      中文
+                    </button>
+                    <button
+                      onClick={() => setManualLang('en')}
+                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${manualLang === 'en' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                      English
+                    </button>
+                 </div>
+               </div>
+               <button onClick={() => setShowManual(false)} className="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-200 rounded-full transition-colors"><X size={20} /></button>
+             </div>
+
+             <div className="flex-1 bg-slate-100 relative overflow-hidden">
+                {manualTab === 'pdf' ? (
+                  <>
+                    <iframe src={`manual-${manualLang}.pdf`} className="w-full h-full" title="User Manual"></iframe>
+                    <div className="absolute bottom-4 right-4 z-10">
+                       <a href={`manual-${manualLang}.pdf`} target="_blank" rel="noreferrer" className="flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur text-slate-600 text-xs font-medium rounded-full shadow-lg border border-slate-200 hover:text-indigo-600 hover:border-indigo-200 transition-colors">
+                         <Download size={12}/> {t.downloadPdf}
+                       </a>
+                    </div>
+                  </>
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 text-slate-300">
+                    {/* OPTION 1: Local Video (Preferred for Demo) - Dynamically switch between demo-zh.mp4 and demo-en.mp4 */}
+                    <video
+                      key={manualLang} /* Force re-render on language change */
+                      controls
+                      className="w-full h-full max-w-5xl max-h-[80vh] shadow-2xl rounded-xl bg-black"
+                      poster="video-poster.png" // Optional poster image
+                    >
+                      <source src={`demo-${manualLang}.mp4`} type="video/mp4" />
+                      {t.videoNotice}
+                    </video>
+
+                    {/* OPTION 2: Embed Bilibili/YouTube (Uncomment to use) */}
+                    {/* <iframe
+                      src="//player.bilibili.com/player.html?aid=YOUR_VIDEO_ID&bvid=YOUR_BV_ID&cid=YOUR_CID&page=1"
+                      scrolling="no"
+                      border="0"
+                      frameBorder="no"
+                      framespacing="0"
+                      allowFullScreen={true}
+                      className="w-full h-full"
+                    ></iframe>
+                    */}
+                  </div>
+                )}
+             </div>
+          </div>
+        </div>
+      )}
 
       {/* Chip Wizard Modal */}
       {showChipWizard && (

@@ -13,6 +13,12 @@ A powerful, web-based logic circuit designer and generator. Supports drag-and-dr
 
 🇬🇧 English Documentation
 
+📖 Detailed User Manual
+
+[![click to read the document](docs/en.png)](docs/en-show.pdf)
+
+>Click the image above to read the complete PDF document online.
+
 Introduction
 
 Logic Circuit Gen is a React-based application designed for students, educators, and electronics enthusiasts. It allows users to visualize digital logic circuits, generate schematics automatically from boolean algebra, and create custom integrated circuits (ICs).
@@ -114,6 +120,12 @@ GitHub: budoyh
 <a id="chinese"></a>
 
 🇨🇳 中文文档 (Chinese Documentation)
+
+### 📖 详细使用手册
+
+[![点击阅读手册](docs/tushan.png)](docs/Tushan_Connection_Scroll.pdf)
+
+> 点击上方图片在线阅读完整 PDF 文档
 
 简介
 
@@ -225,3 +237,4 @@ GitHub: budoyh
 ![GitHub Logo](screenshots/show2.png)
 ![GitHub Logo](screenshots/show3.png)
 ![GitHub Logo](screenshots/show4.png)
+![GitHub Logo](screenshots/show5.png)
