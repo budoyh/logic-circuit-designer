@@ -381,7 +381,7 @@ export default function LogicCircuitDesigner() {
   const [view, setView] = useState({ x: 0, y: 0, k: 1 });
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
-  const [expression, setExpression] = useState("F=WX+YZ′+W′X′Y′Z′+W′XY′Z");
+  const [expression, setExpression] = useState("F = OR(AND(OR(A, NOT(B)), C), AND(OR(NOT(A), B), NOT(C)))");
   const svgRef = useRef(null);
   const [generateError, setGenerateError] = useState(null);
   const [allowedGates, setAllowedGates] = useState({ AND: true, OR: true, NOT: true, NAND: true, NAND4: true, NOR: true, XOR: true, XNOR: true });
