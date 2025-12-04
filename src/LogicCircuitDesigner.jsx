@@ -1,12 +1,11 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Trash2, RotateCcw, Download, Wand2, X, HelpCircle, Layout, Settings, Image as ImageIcon, AlertTriangle, ArrowRightLeft, MessageSquare, Eye, CheckSquare, Square, Copy, ZoomIn, ZoomOut, Github, Grid, Cpu, Zap, Globe, User, BookOpen, ExternalLink, PlusSquare, Save, Layers, FileText, Book, Video, FileText as FileTextIcon } from 'lucide-react';
+import { Trash2, RotateCcw, Download, Wand2, X, HelpCircle, Layout, Settings, Image as ImageIcon, AlertTriangle, ArrowRightLeft, MessageSquare, Eye, CheckSquare, Square, Copy, ZoomIn, ZoomOut, Github, Grid, Cpu, Zap, Globe, User, BookOpen, ExternalLink, PlusSquare, Save, Layers, FileText, Book, Video, FileText as FileTextIcon, Sparkles } from 'lucide-react';
 
 /**
- * 逻辑电路设计器 v6.6.1
+ * 逻辑电路设计器 v6.7.0
  * 更新日志:
- * 1. 升级“使用手册”弹窗：视频演示现在支持多语言切换。
- * 2. 视频源将根据当前语言自动切换为 demo-zh.mp4 或 demo-en.mp4。
- * 3. 语言切换按钮现在对“文档”和“视频”标签页同时生效。
+ * 1. 新增“一键自动布局”功能：基于图论算法自动整理混乱的电路图。
+ * 2. 优化了原有代码结构，保持兼容性。
  */
 
 // --- 多语言配置 ---
@@ -17,6 +16,8 @@ const TRANSLATIONS = {
     viewSource: "查看源码",
     appearance: "外观",
     smartGen: "智能生成",
+    optimize: "美化布局", // New
+    optimizeSuccess: "布局优化完成", // New
     newChip: "新建芯片",
     export: "导出",
     clear: "清空",
@@ -51,7 +52,7 @@ const TRANSLATIONS = {
     guideTitle: "快速上手指南",
     guideStep1: "1. 智能生成：输入布尔公式自动生成电路。",
     guideStep2: "2. 自定义芯片：点击 '新建芯片' 封装自己的元器件。",
-    guideStep3: "3. 交互操作：滚轮缩放，按住空白处拖动平移。",
+    guideStep3: "3. 一键美化：连线混乱时，点击顶部的✨按钮自动整理。", // Updated
     guideStep4: "4. 导出分享：支持高清 PNG 导出。",
     moreInfo: "请访问作者主页查看详细使用文档。作者邮箱：budo0422@outlook.com",
     startUsing: "开始使用",
@@ -74,6 +75,8 @@ const TRANSLATIONS = {
     viewSource: "Source Code",
     appearance: "Style",
     smartGen: "Auto Gen",
+    optimize: "Auto Layout", // New
+    optimizeSuccess: "Layout Optimized", // New
     newChip: "New Chip",
     export: "Export",
     clear: "Clear",
@@ -108,7 +111,7 @@ const TRANSLATIONS = {
     guideTitle: "Quick Start Guide",
     guideStep1: "1. Auto Gen: Input boolean formulas to generate.",
     guideStep2: "2. Custom Chip: Click 'New Chip' to create your own components.",
-    guideStep3: "3. Interaction: Wheel to zoom, drag empty space to pan.",
+    guideStep3: "3. Auto Layout: Click the ✨ button to organize messy wires.", // Updated
     guideStep4: "4. Export: One-click HD PNG export.",
     moreInfo: "Visit author's homepage for detailed docs. Email: budo0422@outlook.com",
     startUsing: "Start Designing",
@@ -657,6 +660,132 @@ User Input: "${expression}"`.trim();
     setAiPrompt(finalPrompt);
     setShowPromptModal(true);
   };
+
+  /**
+   * Auto Layout Function
+   * Organizes current elements based on connectivity.
+   */
+  const handleAutoLayout = () => {
+      if (elements.length === 0) return;
+
+      // 1. Build Graph
+      const graph = new Map();
+      elements.forEach(el => {
+          graph.set(el.id, {
+              ...el,
+              inDegrees: 0,
+              outEdges: [],
+              inEdges: [], // Parents
+              level: 0,
+              rank: 0, // Y order
+          });
+      });
+
+      wires.forEach(w => {
+          const fromNode = graph.get(w.from);
+          const toNode = graph.get(w.to);
+          if (fromNode && toNode) {
+              fromNode.outEdges.push(toNode.id);
+              toNode.inEdges.push(fromNode.id);
+              toNode.inDegrees++;
+          }
+      });
+
+      // 2. Assign Levels (Longest Path Layering)
+      // Iterative approach to handle cycles (max 50 iterations)
+      const nodes = Array.from(graph.values());
+
+      // Initialize inputs to level 0
+      nodes.forEach(n => {
+          if (n.type === 'INPUT' || n.type === 'VCC' || n.type === 'GND' || n.inEdges.length === 0) {
+              n.level = 0;
+          }
+      });
+
+      // Propagate levels
+      // Relax edges: level(to) = max(level(to), level(from) + 1)
+      let changed = true;
+      let iterations = 0;
+      const maxIter = elements.length + 5; // Safety break for loops
+
+      while (changed && iterations < maxIter) {
+          changed = false;
+          nodes.forEach(node => {
+              node.inEdges.forEach(parentId => {
+                  const parent = graph.get(parentId);
+                  if (parent.level + 1 > node.level) {
+                      node.level = parent.level + 1;
+                      changed = true;
+                  }
+              });
+          });
+          iterations++;
+      }
+
+      // Force Outputs to be at least one step after their inputs
+      // Find max level
+      let maxLevel = 0;
+      nodes.forEach(n => maxLevel = Math.max(maxLevel, n.level));
+
+      // 3. Group by Level and Sort (Barycenter Method simplified)
+      const levels = Array.from({ length: maxLevel + 1 }, () => []);
+      nodes.forEach(n => levels[n.level].push(n));
+
+      // Calculate positions
+      const newPositions = new Map();
+      const X_SPACING = LEVEL_WIDTH;
+      const START_X = 50;
+      const START_Y = 50;
+
+      // Sort logic
+      levels.forEach((levelNodes, lvlIdx) => {
+          // Calculate "ideal Y" based on parents average Y
+          levelNodes.forEach(node => {
+              if (node.inEdges.length === 0) {
+                  // Keep relative order of inputs based on existing Y or ID
+                  node._avgParentY = node.y;
+              } else {
+                  let sumY = 0;
+                  let validParents = 0;
+                  node.inEdges.forEach(pid => {
+                      const p = graph.get(pid);
+                      // Use parent's new position if already computed (lower level), else current
+                      const pY = newPositions.has(pid) ? newPositions.get(pid).y : p.y;
+                      sumY += pY;
+                      validParents++;
+                  });
+                  node._avgParentY = validParents > 0 ? sumY / validParents : node.y;
+              }
+          });
+
+          // Sort based on calculated average Y
+          levelNodes.sort((a, b) => a._avgParentY - b._avgParentY);
+
+          // Assign final coordinates
+          let currentY = START_Y;
+          levelNodes.forEach(node => {
+              // Get element height for spacing (IC vs simple gate)
+              let height = 100; // Default buffer
+              if (node.type.startsWith('IC_')) height = 200;
+              if (node.type.startsWith('CUSTOM_')) height = 150;
+
+              // Standard inputs need less space
+              if (node.type === 'INPUT' || node.type === 'OUTPUT') height = INPUT_ROW_HEIGHT;
+
+              // Ensure we don't overlap with previous node in this level
+              // Also try to stay near ideal Y if possible (simplified: just stack for now)
+              newPositions.set(node.id, { x: START_X + lvlIdx * X_SPACING, y: currentY });
+              currentY += height;
+          });
+      });
+
+      // 4. Update State
+      setElements(prev => prev.map(el => {
+          const newPos = newPositions.get(el.id);
+          return newPos ? { ...el, x: newPos.x, y: newPos.y } : el;
+      }));
+  };
+
   const generateFromExpression = () => {
     setGenerateError(null);
     try {
@@ -797,7 +926,7 @@ User Input: "${expression}"`.trim();
     <>
     <div className="flex flex-col h-screen bg-slate-50 text-slate-900 font-sans selection:bg-indigo-100 selection:text-indigo-700" onMouseMove={handleGlobalMouseMove} onMouseUp={handleGlobalMouseUp} onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}>
       <div className="h-16 bg-white/90 backdrop-blur-md border-b border-slate-200 px-6 flex items-center justify-between z-20 shadow-sm relative">
-        <div className="flex items-center gap-4"><div className="bg-gradient-to-br from-indigo-600 to-violet-600 p-2.5 rounded-xl shadow-lg shadow-indigo-200"><Layout className="text-white w-5 h-5" strokeWidth={2.5} /></div><div><h1 className="text-xl font-bold tracking-tight text-slate-900">LogicCircuit <span className="text-indigo-600">Gen</span></h1><div className="flex items-center gap-2 text-xs font-medium text-slate-500 mt-0.5"><span>v6.6.1</span><span className="w-1 h-1 bg-slate-300 rounded-full"></span><span className="flex items-center gap-1">{t.by} <a href="https://github.com/budoyh" target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline font-medium">不懂</a></span><a href="https://github.com/budoyh/logic-circuit-designer" target="_blank" rel="noreferrer" className="text-slate-400 hover:text-slate-900 transition-colors ml-1" title={t.viewSource}><Github size={14} /></a></div></div></div>
+        <div className="flex items-center gap-4"><div className="bg-gradient-to-br from-indigo-600 to-violet-600 p-2.5 rounded-xl shadow-lg shadow-indigo-200"><Layout className="text-white w-5 h-5" strokeWidth={2.5} /></div><div><h1 className="text-xl font-bold tracking-tight text-slate-900">LogicCircuit <span className="text-indigo-600">Gen</span></h1><div className="flex items-center gap-2 text-xs font-medium text-slate-500 mt-0.5"><span>v6.7.0</span><span className="w-1 h-1 bg-slate-300 rounded-full"></span><span className="flex items-center gap-1">{t.by} <a href="https://github.com/budoyh" target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline font-medium">不懂</a></span><a href="https://github.com/budoyh/logic-circuit-designer" target="_blank" rel="noreferrer" className="text-slate-400 hover:text-slate-900 transition-colors ml-1" title={t.viewSource}><Github size={14} /></a></div></div></div>
         <div className="flex items-center gap-3">
            {/* New Chip Button */}
            <button onClick={() => setShowChipWizard(true)} className="flex items-center gap-2 px-3 py-2 rounded-lg transition-all border text-sm font-medium bg-white text-slate-600 border-slate-200 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-600"><PlusSquare size={16} /><span>{t.newChip}</span></button>
@@ -810,6 +939,10 @@ User Input: "${expression}"`.trim();
            <button onClick={() => setShowManual(true)} className="flex items-center gap-2 px-3 py-2 rounded-lg transition-all border text-sm font-medium bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300"><Book size={16} /><span>{t.manual}</span></button>
 
            <button onClick={() => setShowGenerator(true)} className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-lg font-medium shadow-md shadow-indigo-200 hover:shadow-lg hover:shadow-indigo-300 hover:-translate-y-0.5 transition-all active:translate-y-0 active:shadow-none"><Wand2 size={16} /><span>{t.smartGen}</span></button>
+
+           {/* Auto Layout Button (New) */}
+           <button onClick={handleAutoLayout} title={t.optimize} className="flex items-center gap-2 px-3 py-2 bg-fuchsia-50 text-fuchsia-600 border border-fuchsia-200 rounded-lg font-medium hover:bg-fuchsia-100 hover:border-fuchsia-300 transition-all hover:-translate-y-0.5 active:translate-y-0"><Sparkles size={16} /><span>{t.optimize}</span></button>
+
            <button onClick={() => setShowWelcome(true)} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"><HelpCircle size={20} /></button>
         </div>
       </div>
@@ -862,9 +995,9 @@ User Input: "${expression}"`.trim();
                   <>
                     <iframe src={`manual-${manualLang}.pdf`} className="w-full h-full" title="User Manual"></iframe>
                     <div className="absolute bottom-4 right-4 z-10">
-                       <a href={`manual-${manualLang}.pdf`} target="_blank" rel="noreferrer" className="flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur text-slate-600 text-xs font-medium rounded-full shadow-lg border border-slate-200 hover:text-indigo-600 hover:border-indigo-200 transition-colors">
-                         <Download size={12}/> {t.downloadPdf}
-                       </a>
+                        <a href={`manual-${manualLang}.pdf`} target="_blank" rel="noreferrer" className="flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur text-slate-600 text-xs font-medium rounded-full shadow-lg border border-slate-200 hover:text-indigo-600 hover:border-indigo-200 transition-colors">
+                          <Download size={12}/> {t.downloadPdf}
+                        </a>
                     </div>
                   </>
                 ) : (

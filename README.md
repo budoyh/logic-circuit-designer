@@ -1,5 +1,6 @@
 Logic Circuit Designer (逻辑电路自动生成器)\
 ![GitHub Logo](screenshots/advocate1.png)
+![GitHub Logo](screenshots/advocate2.jpg)
 
 <div align="center">
 
