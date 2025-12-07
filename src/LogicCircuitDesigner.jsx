@@ -1,11 +1,20 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Trash2, RotateCcw, Download, Wand2, X, HelpCircle, Layout, Settings, Image as ImageIcon, AlertTriangle, ArrowRightLeft, MessageSquare, Eye, CheckSquare, Square, Copy, ZoomIn, ZoomOut, Github, Grid, Cpu, Zap, Globe, User, BookOpen, ExternalLink, PlusSquare, Save, Layers, FileText, Book, Video, FileText as FileTextIcon, Sparkles } from 'lucide-react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import {
+  Trash2, RotateCcw, Download, Wand2, X, HelpCircle, Layout, Settings,
+  Image as ImageIcon, AlertTriangle, ArrowRightLeft, MessageSquare, Eye,
+  CheckSquare, Square, Copy, ZoomIn, ZoomOut, Github, Grid, Cpu, Zap,
+  Globe, User, BookOpen, ExternalLink, PlusSquare, Save, Layers,
+  FileText as FileTextIcon, Video, Play, Pause, Activity, Edit3, Magnet
+} from 'lucide-react';
 
 /**
- * 逻辑电路设计器 v6.7.0
- * 更新日志:
- * 1. 新增“一键自动布局”功能：基于图论算法自动整理混乱的电路图。
- * 2. 优化了原有代码结构，保持兼容性。
+ * 逻辑电路设计器 v7.6.0
+ * 变更日志:
+ * 1. 移除：删除了“一键美化布局”功能，因为它无法完美解决重叠问题。
+ * 2. 新增：实现了“智能对齐辅助线 (Smart Alignment Guides)”。
+ * - 拖拽组件时，会自动吸附到相邻组件的 X 或 Y 轴。
+ * - 显示贯穿屏幕的蓝色虚线，辅助手动摆放整齐的电路。
+ * 3. 保持：仿真、重命名、自定义芯片等功能完整保留。
  */
 
 // --- 多语言配置 ---
@@ -16,8 +25,7 @@ const TRANSLATIONS = {
     viewSource: "查看源码",
     appearance: "外观",
     smartGen: "智能生成",
-    optimize: "美化布局", // New
-    optimizeSuccess: "布局优化完成", // New
+    // optimize: "美化布局", // Removed
     newChip: "新建芯片",
     export: "导出",
     clear: "清空",
@@ -51,9 +59,9 @@ const TRANSLATIONS = {
     projectRepo: "项目仓库",
     guideTitle: "快速上手指南",
     guideStep1: "1. 智能生成：输入布尔公式自动生成电路。",
-    guideStep2: "2. 自定义芯片：点击 '新建芯片' 封装自己的元器件。",
-    guideStep3: "3. 一键美化：连线混乱时，点击顶部的✨按钮自动整理。", // Updated
-    guideStep4: "4. 导出分享：支持高清 PNG 导出。",
+    guideStep2: "2. 电路仿真：点击顶部的 ▶ 按钮开启仿真，点击输入端子改变电平。",
+    guideStep3: "3. 智能对齐：拖动组件时会出现辅助线，帮助您手动对齐组件。", // Updated
+    guideStep4: "4. 自定义名称：双击输入/输出组件上的文字即可修改名称。",
     moreInfo: "请访问作者主页查看详细使用文档。作者邮箱：budo0422@outlook.com",
     startUsing: "开始使用",
     language: "English",
@@ -68,6 +76,11 @@ const TRANSLATIONS = {
     tabPdf: "文档手册",
     tabVideo: "视频演示",
     videoNotice: "未找到演示视频。请确保 public 文件夹中包含 demo-zh.mp4。",
+    simulation: "仿真模拟",
+    simStart: "开始仿真",
+    simStop: "停止仿真",
+    simRunning: "仿真运行中...",
+    snapEnabled: "吸附已启用",
   },
   en: {
     title: "Logic Circuit Gen",
@@ -75,8 +88,7 @@ const TRANSLATIONS = {
     viewSource: "Source Code",
     appearance: "Style",
     smartGen: "Auto Gen",
-    optimize: "Auto Layout", // New
-    optimizeSuccess: "Layout Optimized", // New
+    // optimize: "Auto Layout", // Removed
     newChip: "New Chip",
     export: "Export",
     clear: "Clear",
@@ -110,9 +122,9 @@ const TRANSLATIONS = {
     projectRepo: "Project Repo",
     guideTitle: "Quick Start Guide",
     guideStep1: "1. Auto Gen: Input boolean formulas to generate.",
-    guideStep2: "2. Custom Chip: Click 'New Chip' to create your own components.",
-    guideStep3: "3. Auto Layout: Click the ✨ button to organize messy wires.", // Updated
-    guideStep4: "4. Export: One-click HD PNG export.",
+    guideStep2: "2. Simulation: Click ▶ to start. Click Inputs to toggle voltage.",
+    guideStep3: "3. Smart Snap: Drag gates to see alignment guides for easy layout.", // Updated
+    guideStep4: "4. Custom Names: Double-click text on Inputs/Outputs to rename.",
     moreInfo: "Visit author's homepage for detailed docs. Email: budo0422@outlook.com",
     startUsing: "Start Designing",
     language: "中文",
@@ -127,16 +139,23 @@ const TRANSLATIONS = {
     tabPdf: "PDF Manual",
     tabVideo: "Video Demo",
     videoNotice: "Demo video not found. Please ensure demo-en.mp4 is in the public folder.",
+    simulation: "Simulation",
+    simStart: "Start Sim",
+    simStop: "Stop Sim",
+    simRunning: "Simulating...",
+    snapEnabled: "Snap Enabled",
   }
 };
 
 // --- 基础配置 ---
 const GRID_SIZE = 20;
-const WIRE_COLOR = "#334155";
+// Color Definitions
+const WIRE_COLOR_NEUTRAL = "#334155"; // Slate-700
+const WIRE_COLOR_LOW = "#ef4444";     // Red-500
+const WIRE_COLOR_HIGH = "#22c55e";    // Green-500
+
 const WIRE_WIDTH = 2;
 const GATE_STROKE_WIDTH = 2;
-const LEVEL_WIDTH = 220;
-const MIN_NODE_GAP = 120;
 const INPUT_ROW_HEIGHT = 90;
 
 // --- 静态资源定义 ---
@@ -235,24 +254,20 @@ const PORT_CONFIG = {
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
-// ... (Routing, Parsing, Synthesis Logic remains same as v6.2) ...
-const getManhattanPath = (x1, y1, x2, y2, offsetIndex = 0) => {
-  const distance = Math.abs(x2 - x1);
-  let baseMidX = (x1 + x2) / 2;
-  const levelsCrossed = Math.round(distance / LEVEL_WIDTH);
-  if (levelsCrossed >= 1) {
-    const firstGutter = Math.min(x1, x2) + LEVEL_WIDTH * 0.55;
-    if (distance > LEVEL_WIDTH * 0.8) baseMidX = firstGutter;
+// --- 路由算法 (回归简单) ---
+// 由于取消了自动布局通道，我们使用简单的 Manhattan 路由
+// 如果需要避让，依靠用户手动布局
+const getManhattanPath = (x1, y1, x2, y2) => {
+  const midX = (x1 + x2) / 2;
+  if (x2 < x1 + 20) {
+      // 回环或过近
+      const loopH = 60;
+      const loopW = 40;
+      return `M ${x1} ${y1} L ${x1 + loopW} ${y1} L ${x1 + loopW} ${y1 + loopH} L ${x2 - loopW} ${y1 + loopH} L ${x2 - loopW} ${y2} L ${x2} ${y2}`;
   }
-  const laneSpacing = 8;
-  const lane = (offsetIndex % 10) - 4.5;
-  const laneShift = lane * laneSpacing;
-  let effectiveMidX = baseMidX + laneShift;
-  const minSafe = Math.min(x1, x2) + 25;
-  const maxSafe = Math.max(x1, x2) - 25;
-  effectiveMidX = Math.max(minSafe, Math.min(maxSafe, effectiveMidX));
-  return `M ${x1} ${y1} L ${effectiveMidX} ${y1} L ${effectiveMidX} ${y2} L ${x2} ${y2}`;
+  return `M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`;
 };
+
 const tokenize = (expr) => expr.replace(/\(/g, ' ( ').replace(/\)/g, ' ) ').replace(/,/g, ' , ').replace(/=/g, ' = ').toUpperCase().trim().split(/\s+/);
 class ExpressionParser {
   constructor(tokens) { this.tokens = tokens; this.pos = 0; }
@@ -362,6 +377,113 @@ class LogicSynthesizer {
   }
 }
 
+// --- Simulation Logic Helper ---
+const simulateCircuit = (elements, wires, initialStates) => {
+  let currentState = { ...initialStates };
+  let unstable = true;
+  let iterations = 0;
+  const MAX_ITERATIONS = 100;
+
+  const getInputValue = (elementId, pinIndex) => {
+      const wire = wires.find(w => w.to === elementId && w.toIndex === pinIndex);
+      if (!wire) return 0;
+      const sourceId = wire.from;
+      const sourceIndex = wire.fromIndex || 0;
+
+      const specificKey = `${sourceId}_${sourceIndex}`;
+      if (currentState[specificKey] !== undefined) return currentState[specificKey];
+
+      if (sourceIndex === 0 && currentState[sourceId] !== undefined) return currentState[sourceId];
+
+      return 0;
+  };
+
+  while (unstable && iterations < MAX_ITERATIONS) {
+      unstable = false;
+      const nextState = { ...currentState };
+
+      elements.forEach(el => {
+          let newVal = 0;
+          let outputs = {};
+
+          if (el.type === 'VCC') {
+              newVal = 1;
+          } else if (el.type === 'GND') {
+              newVal = 0;
+          } else if (el.type === 'INPUT') {
+              newVal = currentState[el.id] || 0;
+          } else if (el.type === 'OUTPUT') {
+              newVal = getInputValue(el.id, 0);
+          } else {
+              const config = PORT_CONFIG[el.type];
+              let inputCount = 2;
+              if (config) {
+                 inputCount = config.inputs.length;
+              }
+
+              const inputs = [];
+              for(let i=0; i<inputCount; i++) inputs.push(getInputValue(el.id, i));
+
+              switch(el.type) {
+                  case 'AND': newVal = inputs.every(v => v) ? 1 : 0; break;
+                  case 'OR': newVal = inputs.some(v => v) ? 1 : 0; break;
+                  case 'NOT': newVal = inputs[0] ? 0 : 1; break;
+                  case 'NAND': newVal = inputs.every(v => v) ? 0 : 1; break;
+                  case 'NOR': newVal = inputs.some(v => v) ? 0 : 1; break;
+                  case 'XOR': newVal = (inputs[0] !== inputs[1]) ? 1 : 0; break;
+                  case 'XNOR': newVal = (inputs[0] === inputs[1]) ? 1 : 0; break;
+                  case 'NAND4': newVal = inputs.every(v => v) ? 0 : 1; break;
+
+                  case 'IC_74LS138':
+                      if(inputs.length >= 6) {
+                        const [A, B, C, G1, G2A, G2B] = inputs;
+                        const enable = G1 && !G2A && !G2B;
+                        const select = (C << 2) | (B << 1) | A;
+                        for(let i=0; i<8; i++) {
+                            outputs[i] = (enable && select === i) ? 0 : 1;
+                        }
+                      }
+                      break;
+
+                  case 'IC_74LS153':
+                      if(inputs.length >= 12) {
+                        const sel = (inputs[1] << 1) | inputs[0];
+                        const en1 = inputs[2];
+                        const val1 = inputs[3 + sel];
+                        outputs[0] = (!en1 && val1) ? 1 : 0;
+
+                        const en2 = inputs[7];
+                        const val2 = inputs[8 + sel];
+                        outputs[1] = (!en2 && val2) ? 1 : 0;
+                      }
+                      break;
+
+                  default: newVal = 0;
+              }
+          }
+
+          if (Object.keys(outputs).length > 0) {
+              Object.keys(outputs).forEach(idx => {
+                  const key = `${el.id}_${idx}`;
+                  if (nextState[key] !== outputs[idx]) {
+                      nextState[key] = outputs[idx];
+                      unstable = true;
+                  }
+              });
+          } else {
+              if (nextState[el.id] !== newVal) {
+                  nextState[el.id] = newVal;
+                  unstable = true;
+              }
+          }
+      });
+
+      currentState = nextState;
+      iterations++;
+  }
+  return currentState;
+};
+
 // --- Main Component ---
 export default function LogicCircuitDesigner() {
   const [elements, setElements] = useState([]);
@@ -373,10 +495,10 @@ export default function LogicCircuitDesigner() {
   const [showAppearance, setShowAppearance] = useState(false);
   const [showPromptModal, setShowPromptModal] = useState(false);
   const [showWelcome, setShowWelcome] = useState(true);
-  const [showChipWizard, setShowChipWizard] = useState(false); // New Wizard State
-  const [showManual, setShowManual] = useState(false); // PDF Manual State
-  const [manualLang, setManualLang] = useState('zh'); // 'zh' or 'en' for manual
-  const [manualTab, setManualTab] = useState('pdf'); // 'pdf' or 'video'
+  const [showChipWizard, setShowChipWizard] = useState(false);
+  const [showManual, setShowManual] = useState(false);
+  const [manualLang, setManualLang] = useState('zh');
+  const [manualTab, setManualTab] = useState('pdf');
   const [aiPrompt, setAiPrompt] = useState("");
   const [view, setView] = useState({ x: 0, y: 0, k: 1 });
   const [isPanning, setIsPanning] = useState(false);
@@ -387,27 +509,71 @@ export default function LogicCircuitDesigner() {
   const [allowedGates, setAllowedGates] = useState({ AND: true, OR: true, NOT: true, NAND: true, NAND4: true, NOR: true, XOR: true, XNOR: true });
   const [appearance, setAppearance] = useState({ simpleIO: false });
   const [lang, setLang] = useState('zh');
-  const [customChips, setCustomChips] = useState([]); // Store custom chips
+  const [customChips, setCustomChips] = useState([]);
+
+  // --- New State for Alignment Guides ---
+  const [alignmentGuides, setAlignmentGuides] = useState([]); // Array of { type: 'x'|'y', pos: number }
+
+  // --- New State for Renaming ---
+  const [editingNodeId, setEditingNodeId] = useState(null);
+  const [editingLabel, setEditingLabel] = useState("");
+
+  // --- Simulation State ---
+  const [simulationRunning, setSimulationRunning] = useState(false);
+  const [nodeStates, setNodeStates] = useState({});
 
   // Wizard State
   const [wizardData, setWizardData] = useState({ name: '', width: 100, inputStr: '', outputStr: '' });
 
   const t = TRANSLATIONS[lang];
 
-  // Sync manual language with app language when manual is opened
   useEffect(() => {
     if (showManual) {
         setManualLang(lang);
     }
   }, [showManual, lang]);
 
-  // Load custom chips on mount
   useEffect(() => {
     const saved = localStorage.getItem('customChips');
     if (saved) {
         try { setCustomChips(JSON.parse(saved)); } catch (e) { console.error(e); }
     }
   }, []);
+
+  useEffect(() => {
+    if (simulationRunning) {
+        const finalState = simulateCircuit(elements, wires, nodeStates);
+        setNodeStates(finalState);
+    }
+  }, [wires, elements, simulationRunning]);
+
+  const toggleSimulation = () => {
+      const newState = !simulationRunning;
+      setSimulationRunning(newState);
+      if (newState) {
+          const initial = {};
+          elements.forEach(el => {
+            if (el.type === 'VCC') initial[el.id] = 1;
+            else if (el.type === 'GND') initial[el.id] = 0;
+            else initial[el.id] = 0;
+          });
+          const finalState = simulateCircuit(elements, wires, initial);
+          setNodeStates(finalState);
+      } else {
+          setNodeStates({});
+      }
+  };
+
+  const handleInputToggle = (e, id) => {
+    if (!simulationRunning) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const currentVal = nodeStates[id] || 0;
+    const nextInputState = currentVal ? 0 : 1;
+    const seedState = { ...nodeStates, [id]: nextInputState };
+    const finalState = simulateCircuit(elements, wires, seedState);
+    setNodeStates(finalState);
+  };
 
   const saveCustomChip = () => {
       const inputs = wizardData.inputStr.split(',').map(s => s.trim()).filter(s => s);
@@ -421,7 +587,7 @@ export default function LogicCircuitDesigner() {
           width: wizardData.width,
           inputs,
           outputs,
-          height: 50 + Math.max(inputs.length, outputs.length) * 20 // Auto height
+          height: 50 + Math.max(inputs.length, outputs.length) * 20
       };
 
       const updated = [...customChips, newChip];
@@ -431,12 +597,10 @@ export default function LogicCircuitDesigner() {
       setWizardData({ name: '', width: 100, inputStr: '', outputStr: '' });
   };
 
-  // --- Helper to get port positions for dynamic chips ---
   const getPortPos = (elementId, portType, index) => {
     const el = elements.find(e => e.id === elementId);
     if (!el) return { x: 0, y: 0 };
 
-    // 1. Static Config
     if (PORT_CONFIG[el.type]) {
         const config = PORT_CONFIG[el.type];
         if (portType === 'input') {
@@ -449,17 +613,13 @@ export default function LogicCircuitDesigner() {
         }
     }
 
-    // 2. Custom Chips
     if (el.type.startsWith('CUSTOM_')) {
         const chipDef = customChips.find(c => c.id === el.type);
         if (!chipDef) return { x: el.x, y: el.y };
 
         if (portType === 'input') {
-            // Inputs on left: x=0, y starts at 45, +20 step
             return { x: el.x, y: el.y + 45 + (index * 20) };
         } else {
-            // Outputs on right: x=width, y starts at 45? or distribute?
-            // Let's align simple top-down for now
             return { x: el.x + chipDef.width, y: el.y + 45 + ((index || 0) * 20) };
         }
     }
@@ -467,15 +627,111 @@ export default function LogicCircuitDesigner() {
     return { x: el.x, y: el.y };
   };
 
-  // --- Render Gates (Static + Dynamic) ---
   const renderGate = (el) => {
-    // 1. Standard Shapes
-    if (el.type === 'INPUT') return appearance.simpleIO ? GATE_PATHS.INPUT_SIMPLE : GATE_PATHS.INPUT_STD;
-    if (el.type === 'OUTPUT') return appearance.simpleIO ? GATE_PATHS.OUTPUT_SIMPLE : GATE_PATHS.OUTPUT_STD;
-    if (GATE_PATHS[el.type]) return GATE_PATHS[el.type];
-    if (IC_SVGS[el.type]) return IC_SVGS[el.type]; // Hardcoded ICs
+    const isHigh = nodeStates[el.id] === 1;
 
-    // 2. Custom Chips
+    const getICPinColor = (pinIndex) => {
+        if (!simulationRunning) return "currentColor";
+        const val = nodeStates[`${el.id}_${pinIndex}`] !== undefined
+                    ? nodeStates[`${el.id}_${pinIndex}`]
+                    : (pinIndex === 0 ? nodeStates[el.id] : undefined);
+
+        if (val === 1) return WIRE_COLOR_HIGH;
+        if (val === 0) return WIRE_COLOR_LOW;
+        return "currentColor";
+    };
+
+    if (el.type === 'INPUT') {
+        const base = appearance.simpleIO ? GATE_PATHS.INPUT_SIMPLE : GATE_PATHS.INPUT_STD;
+        const colorClass = simulationRunning
+            ? (isHigh ? "text-green-500" : "text-red-500")
+            : "text-slate-900";
+        return (
+            <g className={simulationRunning ? "cursor-pointer" : ""}>
+                <g className={colorClass}>{base}</g>
+                {simulationRunning && (
+                    <circle cx="20" cy="30" r="10" fill={isHigh ? "#22c55e" : "#ef4444"} fillOpacity="0.3" stroke="none" className="animate-pulse"/>
+                )}
+            </g>
+        );
+    }
+    if (el.type === 'OUTPUT') {
+        const base = appearance.simpleIO ? GATE_PATHS.OUTPUT_SIMPLE : GATE_PATHS.OUTPUT_STD;
+        const colorClass = simulationRunning
+            ? (isHigh ? "text-green-500" : "text-red-500")
+            : "text-slate-900";
+        return (
+            <g>
+                <g className={colorClass}>{base}</g>
+                {simulationRunning && (
+                    <circle cx="20" cy="30" r="12" fill={isHigh ? "#22c55e" : "#ef4444"} fillOpacity="0.4" stroke={isHigh ? "#22c55e" : "#ef4444"} className="transition-colors duration-200"/>
+                )}
+            </g>
+        );
+    }
+
+    if (el.type === 'IC_74LS138') {
+        return (
+            <g>
+                <rect x="0" y="0" width="100" height="260" rx="4" fill="white" stroke="currentColor" strokeWidth={2} />
+                <text x="50" y="25" textAnchor="middle" fontSize="14" fontWeight="bold" fill="#334155">74LS138</text>
+                <text x="8" y="55" fontSize="12" fill="#64748b" dominantBaseline="middle">A</text>
+                <text x="8" y="75" fontSize="12" fill="#64748b" dominantBaseline="middle">B</text>
+                <text x="8" y="95" fontSize="12" fill="#64748b" dominantBaseline="middle">C</text>
+                <text x="8" y="125" fontSize="12" fill="#64748b" dominantBaseline="middle">G1</text>
+                <circle cx="5" cy="145" r="3" fill="white" stroke="#64748b" strokeWidth="1.5"/>
+                <text x="12" y="145" fontSize="12" fill="#64748b" dominantBaseline="middle" textDecoration="overline">G2A</text>
+                <circle cx="5" cy="165" r="3" fill="white" stroke="#64748b" strokeWidth="1.5"/>
+                <text x="12" y="165" fontSize="12" fill="#64748b" dominantBaseline="middle" textDecoration="overline">G2B</text>
+                {[0,1,2,3,4,5,6,7].map(i => {
+                    const color = getICPinColor(i);
+                    const filled = simulationRunning ? color : "white";
+                    return (
+                        <React.Fragment key={i}>
+                            <text x="92" y={85 + i*20} textAnchor="end" fontSize="12" fill="#64748b" dominantBaseline="middle" textDecoration="overline">Y{i}</text>
+                            <circle cx="96" cy={85 + i*20} r="3" fill={filled} stroke={color === "currentColor" ? "currentColor" : color} strokeWidth={1.5} />
+                        </React.Fragment>
+                    );
+                })}
+            </g>
+        );
+    }
+
+    if (el.type === 'IC_74LS153') {
+        const c1Y = getICPinColor(0);
+        const c2Y = getICPinColor(1);
+        return (
+            <g>
+                <rect x="0" y="0" width="100" height="320" rx="4" fill="white" stroke="currentColor" strokeWidth={2} />
+                <text x="50" y="25" textAnchor="middle" fontSize="14" fontWeight="bold" fill="#334155">74LS153</text>
+                <line x1="5" y1="85" x2="95" y2="85" stroke="#e2e8f0" strokeDasharray="3 3"/>
+                <text x="8" y="50" fontSize="12" fill="#64748b" dominantBaseline="middle">A</text>
+                <text x="8" y="70" fontSize="12" fill="#64748b" dominantBaseline="middle">B</text>
+                <text x="12" y="105" fontSize="11" fill="#64748b" dominantBaseline="middle">1G</text>
+                <circle cx="5" cy="105" r="3" fill="white" stroke="#64748b" strokeWidth="1.5"/>
+                <text x="8" y="125" fontSize="11" fill="#64748b" dominantBaseline="middle">1C0</text>
+                <text x="8" y="145" fontSize="11" fill="#64748b" dominantBaseline="middle">1C1</text>
+                <text x="8" y="165" fontSize="11" fill="#64748b" dominantBaseline="middle">1C2</text>
+                <text x="8" y="185" fontSize="11" fill="#64748b" dominantBaseline="middle">1C3</text>
+                <text x="92" y="145" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle">1Y</text>
+                <circle cx="96" cy="145" r="0" />
+                <circle cx="96" cy="145" r="3" fill={simulationRunning ? c1Y : "white"} stroke={c1Y === "currentColor" ? "currentColor" : c1Y} strokeWidth={1.5} />
+
+                <line x1="5" y1="195" x2="95" y2="195" stroke="#e2e8f0" strokeDasharray="3 3"/>
+                <text x="12" y="215" fontSize="11" fill="#64748b" dominantBaseline="middle">2G</text>
+                <circle cx="5" cy="215" r="3" fill="white" stroke="#64748b" strokeWidth="1.5"/>
+                <text x="8" y="235" fontSize="11" fill="#64748b" dominantBaseline="middle">2C0</text>
+                <text x="8" y="255" fontSize="11" fill="#64748b" dominantBaseline="middle">2C1</text>
+                <text x="8" y="275" fontSize="11" fill="#64748b" dominantBaseline="middle">2C2</text>
+                <text x="8" y="295" fontSize="11" fill="#64748b" dominantBaseline="middle">2C3</text>
+                <text x="92" y="255" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle">2Y</text>
+                <circle cx="96" cy="255" r="3" fill={simulationRunning ? c2Y : "white"} stroke={c2Y === "currentColor" ? "currentColor" : c2Y} strokeWidth={1.5} />
+            </g>
+        );
+    }
+
+    if (GATE_PATHS[el.type]) return GATE_PATHS[el.type];
+
     if (el.type.startsWith('CUSTOM_')) {
         const chip = customChips.find(c => c.id === el.type);
         if (!chip) return <rect width="50" height="50" fill="red" />;
@@ -484,11 +740,9 @@ export default function LogicCircuitDesigner() {
             <g>
                 <rect x="0" y="0" width={chip.width} height={chip.height} rx="4" fill="white" stroke="currentColor" strokeWidth={2} />
                 <text x={chip.width/2} y="25" textAnchor="middle" fontSize="12" fontWeight="bold" fill="#334155" style={{ pointerEvents: 'none' }}>{chip.name}</text>
-                {/* Inputs */}
                 {chip.inputs.map((label, i) => (
                     <text key={`in-${i}`} x="8" y={45 + i*20} fontSize="10" fill="#64748b" dominantBaseline="middle">{label}</text>
                 ))}
-                {/* Outputs */}
                 {chip.outputs.map((label, i) => (
                     <text key={`out-${i}`} x={chip.width - 8} y={45 + i*20} textAnchor="end" fontSize="10" fill="#64748b" dominantBaseline="middle">{label}</text>
                 ))}
@@ -498,7 +752,6 @@ export default function LogicCircuitDesigner() {
     return null;
   };
 
-  // ... (Handlers: Wheel, Pan, MouseMove etc. same as before) ...
   const getMouseWorldPos = (e) => {
     if (!svgRef.current) return { x: 0, y: 0 };
     const CTM = svgRef.current.getScreenCTM();
@@ -520,6 +773,8 @@ export default function LogicCircuitDesigner() {
     setIsPanning(true);
     setPanStart({ x: e.clientX, y: e.clientY });
   };
+
+  // --- Smart Alignment Guides Logic ---
   const handleGlobalMouseMove = (e) => {
     setMousePos({ x: e.clientX, y: e.clientY });
     if (isPanning) {
@@ -529,19 +784,59 @@ export default function LogicCircuitDesigner() {
       setPanStart({ x: e.clientX, y: e.clientY });
       return;
     }
-    if (draggingId) {
+
+    if (draggingId && !simulationRunning) {
       const worldPos = getMouseWorldPos(e);
-      const snappedX = Math.round(worldPos.x / GRID_SIZE) * GRID_SIZE;
-      const snappedY = Math.round(worldPos.y / GRID_SIZE) * GRID_SIZE;
+      let snappedX = Math.round(worldPos.x / GRID_SIZE) * GRID_SIZE;
+      let snappedY = Math.round(worldPos.y / GRID_SIZE) * GRID_SIZE;
+
+      // ALIGNMENT GUIDES
+      const SNAP_THRESHOLD = 10;
+      const newGuides = [];
+      let isXSnapped = false;
+      let isYSnapped = false;
+
+      elements.forEach(other => {
+          if (other.id === draggingId) return;
+
+          // Check X alignment
+          if (Math.abs(other.x - snappedX) < SNAP_THRESHOLD) {
+              snappedX = other.x;
+              isXSnapped = true;
+              newGuides.push({ type: 'x', pos: other.x });
+          }
+          // Check Y alignment
+          if (Math.abs(other.y - snappedY) < SNAP_THRESHOLD) {
+              snappedY = other.y;
+              isYSnapped = true;
+              newGuides.push({ type: 'y', pos: other.y });
+          }
+      });
+
+      setAlignmentGuides(newGuides);
       updateElementPos(draggingId, snappedX, snappedY);
     }
   };
-  const handleGlobalMouseUp = () => { setIsPanning(false); setDraggingId(null); };
-  const handleMouseDown = (e, id) => {
+
+  const handleGlobalMouseUp = () => {
+      setIsPanning(false);
+      setDraggingId(null);
+      setAlignmentGuides([]); // Clear guides on drop
+  };
+
+  const handleMouseDown = (e, id, type) => {
+    if (simulationRunning) {
+        if (type === 'INPUT') {
+            handleInputToggle(e, id);
+        }
+        return;
+    }
+
     if (connecting) { setConnecting(null); return; }
     if (id) { e.stopPropagation(); setDraggingId(id); }
     else { startPan(e); }
   };
+
   const addElement = (type, x, y, label = "") => {
     const id = generateId();
     let finalLabel = label;
@@ -563,6 +858,7 @@ export default function LogicCircuitDesigner() {
   const handleDragStart = (e, type) => { e.dataTransfer.setData('gateType', type); };
   const handleDrop = (e) => {
     e.preventDefault();
+    if (simulationRunning) return;
     const type = e.dataTransfer.getData('gateType');
     if (!type) return;
     const worldPos = getMouseWorldPos(e);
@@ -571,10 +867,12 @@ export default function LogicCircuitDesigner() {
     addElement(type, snappedX, snappedY);
   };
   const updateElementPos = (id, x, y) => { setElements(els => els.map(el => el.id === id ? { ...el, x, y } : el)); };
-  const deleteElement = (id) => { setElements(els => els.filter(e => e.id !== id)); setWires(ws => ws.filter(w => w.from !== id && w.to !== id)); };
-  const clearCanvas = () => { setElements([]); setWires([]); };
+  const deleteElement = (id) => {
+      if(simulationRunning) return;
+      setElements(els => els.filter(e => e.id !== id)); setWires(ws => ws.filter(w => w.from !== id && w.to !== id));
+  };
+  const clearCanvas = () => { if(simulationRunning) return; setElements([]); setWires([]); };
 
-  // Export & Clipboard handlers (Same as v6.2)
   const handleExport = () => {
     if (!svgRef.current) return;
     const clone = svgRef.current.cloneNode(true);
@@ -661,130 +959,23 @@ User Input: "${expression}"`.trim();
     setShowPromptModal(true);
   };
 
-  /**
-   * Auto Layout Function
-   * Organizes current elements based on connectivity.
-   */
-  const handleAutoLayout = () => {
-      if (elements.length === 0) return;
-
-      // 1. Build Graph
-      const graph = new Map();
-      elements.forEach(el => {
-          graph.set(el.id, {
-              ...el,
-              inDegrees: 0,
-              outEdges: [],
-              inEdges: [], // Parents
-              level: 0,
-              rank: 0, // Y order
-          });
-      });
-
-      wires.forEach(w => {
-          const fromNode = graph.get(w.from);
-          const toNode = graph.get(w.to);
-          if (fromNode && toNode) {
-              fromNode.outEdges.push(toNode.id);
-              toNode.inEdges.push(fromNode.id);
-              toNode.inDegrees++;
-          }
-      });
-
-      // 2. Assign Levels (Longest Path Layering)
-      // Iterative approach to handle cycles (max 50 iterations)
-      const nodes = Array.from(graph.values());
-
-      // Initialize inputs to level 0
-      nodes.forEach(n => {
-          if (n.type === 'INPUT' || n.type === 'VCC' || n.type === 'GND' || n.inEdges.length === 0) {
-              n.level = 0;
-          }
-      });
-
-      // Propagate levels
-      // Relax edges: level(to) = max(level(to), level(from) + 1)
-      let changed = true;
-      let iterations = 0;
-      const maxIter = elements.length + 5; // Safety break for loops
-
-      while (changed && iterations < maxIter) {
-          changed = false;
-          nodes.forEach(node => {
-              node.inEdges.forEach(parentId => {
-                  const parent = graph.get(parentId);
-                  if (parent.level + 1 > node.level) {
-                      node.level = parent.level + 1;
-                      changed = true;
-                  }
-              });
-          });
-          iterations++;
-      }
-
-      // Force Outputs to be at least one step after their inputs
-      // Find max level
-      let maxLevel = 0;
-      nodes.forEach(n => maxLevel = Math.max(maxLevel, n.level));
-
-      // 3. Group by Level and Sort (Barycenter Method simplified)
-      const levels = Array.from({ length: maxLevel + 1 }, () => []);
-      nodes.forEach(n => levels[n.level].push(n));
-
-      // Calculate positions
-      const newPositions = new Map();
-      const X_SPACING = LEVEL_WIDTH;
-      const START_X = 50;
-      const START_Y = 50;
-
-      // Sort logic
-      levels.forEach((levelNodes, lvlIdx) => {
-          // Calculate "ideal Y" based on parents average Y
-          levelNodes.forEach(node => {
-              if (node.inEdges.length === 0) {
-                  // Keep relative order of inputs based on existing Y or ID
-                  node._avgParentY = node.y;
-              } else {
-                  let sumY = 0;
-                  let validParents = 0;
-                  node.inEdges.forEach(pid => {
-                      const p = graph.get(pid);
-                      // Use parent's new position if already computed (lower level), else current
-                      const pY = newPositions.has(pid) ? newPositions.get(pid).y : p.y;
-                      sumY += pY;
-                      validParents++;
-                  });
-                  node._avgParentY = validParents > 0 ? sumY / validParents : node.y;
-              }
-          });
-
-          // Sort based on calculated average Y
-          levelNodes.sort((a, b) => a._avgParentY - b._avgParentY);
-
-          // Assign final coordinates
-          let currentY = START_Y;
-          levelNodes.forEach(node => {
-              // Get element height for spacing (IC vs simple gate)
-              let height = 100; // Default buffer
-              if (node.type.startsWith('IC_')) height = 200;
-              if (node.type.startsWith('CUSTOM_')) height = 150;
-
-              // Standard inputs need less space
-              if (node.type === 'INPUT' || node.type === 'OUTPUT') height = INPUT_ROW_HEIGHT;
-
-              // Ensure we don't overlap with previous node in this level
-              // Also try to stay near ideal Y if possible (simplified: just stack for now)
-              newPositions.set(node.id, { x: START_X + lvlIdx * X_SPACING, y: currentY });
-              currentY += height;
-          });
-      });
-
-      // 4. Update State
-      setElements(prev => prev.map(el => {
-          const newPos = newPositions.get(el.id);
-          return newPos ? { ...el, x: newPos.x, y: newPos.y } : el;
-      }));
+  // --- Renaming Handlers ---
+  const handleNodeDoubleClick = (e, id, currentLabel) => {
+      e.stopPropagation();
+      e.preventDefault();
+      // Allow renaming even in simulation mode for better UX, or strictly check
+      setEditingNodeId(id);
+      setEditingLabel(currentLabel || "");
   };
+
+  const saveLabelChange = () => {
+      if (editingNodeId) {
+          setElements(prev => prev.map(el => el.id === editingNodeId ? { ...el, label: editingLabel } : el));
+          setEditingNodeId(null);
+      }
+  };
+
+  // 移除 handleAutoLayout
 
   const generateFromExpression = () => {
     setGenerateError(null);
@@ -850,44 +1041,8 @@ User Input: "${expression}"`.trim();
         nodes.push(outNode);
         wiresData.push({ from: outNode.inputNode.id, to: outNode.id, toIndex: 0 });
       });
-      const levels = [];
-      nodes.forEach(node => {
-        if (!levels[node.level]) levels[node.level] = [];
-        levels[node.level].push(node);
-      });
-      const nodePositions = new Map();
-      orderedInputs.forEach((node, idx) => nodePositions.set(node.id, { x: 50, y: 100 + idx * INPUT_ROW_HEIGHT }));
-      for (let i = 1; i < levels.length; i++) {
-        const currentLevelNodes = levels[i] || [];
-        currentLevelNodes.forEach(node => {
-          let sumY = 0;
-          node.children.forEach(inputNode => {
-            const inputPos = nodePositions.get(inputNode.id);
-            if (inputPos) sumY += inputPos.y;
-          });
-          node._idealY = node.children.length > 0 ? sumY / node.children.length : 100;
-        });
-        currentLevelNodes.sort((a, b) => {
-          const diff = a._idealY - b._idealY;
-          if (Math.abs(diff) < 20) return a.groupIndex - b.groupIndex;
-          return diff;
-        });
-        for (let j = 0; j < currentLevelNodes.length; j++) {
-          const node = currentLevelNodes[j];
-          let finalY = node._idealY;
-          if (j > 0) {
-            const prevNode = currentLevelNodes[j - 1];
-            const prevY = nodePositions.get(prevNode.id).y;
-            const minAllowedY = prevY + MIN_NODE_GAP;
-            if (finalY < minAllowedY) finalY = minAllowedY;
-          }
-          nodePositions.set(node.id, { x: 50 + i * LEVEL_WIDTH, y: finalY });
-        }
-      }
-      const finalElements = nodes.map(n => {
-        const pos = nodePositions.get(n.id);
-        return { id: n.id, type: n.type, x: pos.x, y: pos.y, label: n.label };
-      });
+      // 简单初始排列，不尝试做复杂布局
+      const finalElements = nodes.map((n, idx) => ({ id: n.id, type: n.type, x: 50 + n.level * 200, y: 50 + idx * 100, label: n.label }));
       const finalWires = wiresData.map(w => ({
         id: generateId(),
         from: w.from, fromIndex: null, to: w.to, toIndex: w.toIndex
@@ -902,6 +1057,8 @@ User Input: "${expression}"`.trim();
 
   const handlePortClick = (e, elementId, type, index) => {
     e.stopPropagation();
+    if(simulationRunning) return;
+
     if (connecting) {
       if (connecting.elementId === elementId) { setConnecting(null); return; }
       let source, target;
@@ -926,22 +1083,31 @@ User Input: "${expression}"`.trim();
     <>
     <div className="flex flex-col h-screen bg-slate-50 text-slate-900 font-sans selection:bg-indigo-100 selection:text-indigo-700" onMouseMove={handleGlobalMouseMove} onMouseUp={handleGlobalMouseUp} onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}>
       <div className="h-16 bg-white/90 backdrop-blur-md border-b border-slate-200 px-6 flex items-center justify-between z-20 shadow-sm relative">
-        <div className="flex items-center gap-4"><div className="bg-gradient-to-br from-indigo-600 to-violet-600 p-2.5 rounded-xl shadow-lg shadow-indigo-200"><Layout className="text-white w-5 h-5" strokeWidth={2.5} /></div><div><h1 className="text-xl font-bold tracking-tight text-slate-900">LogicCircuit <span className="text-indigo-600">Gen</span></h1><div className="flex items-center gap-2 text-xs font-medium text-slate-500 mt-0.5"><span>v6.7.0</span><span className="w-1 h-1 bg-slate-300 rounded-full"></span><span className="flex items-center gap-1">{t.by} <a href="https://github.com/budoyh" target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline font-medium">不懂</a></span><a href="https://github.com/budoyh/logic-circuit-designer" target="_blank" rel="noreferrer" className="text-slate-400 hover:text-slate-900 transition-colors ml-1" title={t.viewSource}><Github size={14} /></a></div></div></div>
+        <div className="flex items-center gap-4"><div className="bg-gradient-to-br from-indigo-600 to-violet-600 p-2.5 rounded-xl shadow-lg shadow-indigo-200"><Layout className="text-white w-5 h-5" strokeWidth={2.5} /></div><div><h1 className="text-xl font-bold tracking-tight text-slate-900">LogicCircuit <span className="text-indigo-600">Gen</span></h1><div className="flex items-center gap-2 text-xs font-medium text-slate-500 mt-0.5"><span>v7.6.0</span><span className="w-1 h-1 bg-slate-300 rounded-full"></span><span className="flex items-center gap-1">{t.by} <a href="https://github.com/budoyh" target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline font-medium">不懂</a></span><a href="https://github.com/budoyh/logic-circuit-designer" target="_blank" rel="noreferrer" className="text-slate-400 hover:text-slate-900 transition-colors ml-1" title={t.viewSource}><Github size={14} /></a></div></div></div>
         <div className="flex items-center gap-3">
-           {/* New Chip Button */}
+           {/* Simulation Control */}
+           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 mr-2">
+                <button
+                    onClick={toggleSimulation}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-bold transition-all ${simulationRunning ? 'bg-red-500 text-white shadow-md' : 'text-slate-600 hover:bg-white hover:shadow-sm'}`}
+                    title={simulationRunning ? t.simStop : t.simStart}
+                >
+                    {simulationRunning ? <Square size={14} fill="currentColor"/> : <Play size={14} fill="currentColor"/>}
+                    {simulationRunning ? t.simStop : t.simStart}
+                </button>
+           </div>
+
            <button onClick={() => setShowChipWizard(true)} className="flex items-center gap-2 px-3 py-2 rounded-lg transition-all border text-sm font-medium bg-white text-slate-600 border-slate-200 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-600"><PlusSquare size={16} /><span>{t.newChip}</span></button>
 
            <button onClick={() => setLang(l => l === 'zh' ? 'en' : 'zh')} className="flex items-center gap-2 px-3 py-2 rounded-lg transition-all border text-sm font-medium bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300"><Globe size={16} /><span>{t.language}</span></button>
            <button onClick={() => setShowAppearance(!showAppearance)} className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all border text-sm font-medium ${showAppearance ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300'}`}><Eye size={16} /><span>{t.appearance}</span></button>
            {showAppearance && (<div className="absolute top-20 right-40 bg-white/95 backdrop-blur-xl p-4 rounded-2xl shadow-xl border border-white/20 ring-1 ring-black/5 w-64 z-50 animate-in fade-in zoom-in-95 origin-top-right"><h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2"><Settings size={12}/> {t.settings}</h4><div className="flex items-center justify-between p-3 hover:bg-slate-50 rounded-xl cursor-pointer transition-colors group" onClick={() => setAppearance(prev => ({ ...prev, simpleIO: !prev.simpleIO }))}><span className="text-sm font-medium text-slate-700 group-hover:text-indigo-700 transition-colors">{t.simpleNode}</span>{appearance.simpleIO ? <CheckSquare className="text-indigo-600 w-5 h-5"/> : <Square className="text-slate-300 w-5 h-5 group-hover:text-slate-400"/>}</div><p className="text-[10px] text-slate-400 mt-2 px-2 leading-relaxed">{t.simpleNodeDesc}</p></div>)}
 
-           {/* Manual PDF Button */}
-           <button onClick={() => setShowManual(true)} className="flex items-center gap-2 px-3 py-2 rounded-lg transition-all border text-sm font-medium bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300"><Book size={16} /><span>{t.manual}</span></button>
+           <button onClick={() => setShowManual(true)} className="flex items-center gap-2 px-3 py-2 rounded-lg transition-all border text-sm font-medium bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300"><BookOpen size={16} /><span>{t.manual}</span></button>
 
            <button onClick={() => setShowGenerator(true)} className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-lg font-medium shadow-md shadow-indigo-200 hover:shadow-lg hover:shadow-indigo-300 hover:-translate-y-0.5 transition-all active:translate-y-0 active:shadow-none"><Wand2 size={16} /><span>{t.smartGen}</span></button>
 
-           {/* Auto Layout Button (New) */}
-           <button onClick={handleAutoLayout} title={t.optimize} className="flex items-center gap-2 px-3 py-2 bg-fuchsia-50 text-fuchsia-600 border border-fuchsia-200 rounded-lg font-medium hover:bg-fuchsia-100 hover:border-fuchsia-300 transition-all hover:-translate-y-0.5 active:translate-y-0"><Sparkles size={16} /><span>{t.optimize}</span></button>
+           {/* Removed Auto Layout Button */}
 
            <button onClick={() => setShowWelcome(true)} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"><HelpCircle size={20} /></button>
         </div>
@@ -951,82 +1117,36 @@ User Input: "${expression}"`.trim();
       {showManual && (
         <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm z-[80] flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-white rounded-2xl shadow-2xl w-[90vw] h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 border border-white/20 ring-1 ring-black/5">
-             <div className="flex justify-between items-center p-4 border-b border-slate-100 bg-slate-50">
-               <div className="flex items-center gap-4">
-                 <h3 className="font-bold text-slate-800 flex items-center gap-2"><BookOpen size={18} className="text-indigo-500"/> {t.manualTitle}</h3>
-
-                 {/* Tabs for PDF vs Video */}
-                 <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200">
-                    <button
-                      onClick={() => setManualTab('pdf')}
-                      className={`flex items-center gap-2 px-3 py-1 rounded-md text-xs font-bold transition-all ${manualTab === 'pdf' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
-                    >
-                      <FileTextIcon size={14}/> {t.tabPdf}
-                    </button>
-                    <button
-                      onClick={() => setManualTab('video')}
-                      className={`flex items-center gap-2 px-3 py-1 rounded-md text-xs font-bold transition-all ${manualTab === 'video' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
-                    >
-                      <Video size={14}/> {t.tabVideo}
-                    </button>
-                 </div>
-
-                 {/* Language Toggles (Visible for Both PDF and Video) */}
-                 <div className="flex items-center gap-1 bg-slate-200/50 p-1 rounded-lg">
-                    <button
-                      onClick={() => setManualLang('zh')}
-                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${manualLang === 'zh' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
-                    >
-                      中文
-                    </button>
-                    <button
-                      onClick={() => setManualLang('en')}
-                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${manualLang === 'en' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
-                    >
-                      English
-                    </button>
-                 </div>
-               </div>
-               <button onClick={() => setShowManual(false)} className="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-200 rounded-full transition-colors"><X size={20} /></button>
-             </div>
-
-             <div className="flex-1 bg-slate-100 relative overflow-hidden">
-                {manualTab === 'pdf' ? (
-                  <>
-                    <iframe src={`manual-${manualLang}.pdf`} className="w-full h-full" title="User Manual"></iframe>
-                    <div className="absolute bottom-4 right-4 z-10">
-                        <a href={`manual-${manualLang}.pdf`} target="_blank" rel="noreferrer" className="flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur text-slate-600 text-xs font-medium rounded-full shadow-lg border border-slate-200 hover:text-indigo-600 hover:border-indigo-200 transition-colors">
-                          <Download size={12}/> {t.downloadPdf}
-                        </a>
-                    </div>
-                  </>
-                ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 text-slate-300">
-                    {/* OPTION 1: Local Video (Preferred for Demo) - Dynamically switch between demo-zh.mp4 and demo-en.mp4 */}
-                    <video
-                      key={manualLang} /* Force re-render on language change */
-                      controls
-                      className="w-full h-full max-w-5xl max-h-[80vh] shadow-2xl rounded-xl bg-black"
-                      poster="video-poster.png" // Optional poster image
-                    >
-                      <source src={`demo-${manualLang}.mp4`} type="video/mp4" />
-                      {t.videoNotice}
-                    </video>
-
-                    {/* OPTION 2: Embed Bilibili/YouTube (Uncomment to use) */}
-                    {/* <iframe
-                      src="//player.bilibili.com/player.html?aid=YOUR_VIDEO_ID&bvid=YOUR_BV_ID&cid=YOUR_CID&page=1"
-                      scrolling="no"
-                      border="0"
-                      frameBorder="no"
-                      framespacing="0"
-                      allowFullScreen={true}
-                      className="w-full h-full"
-                    ></iframe>
-                    */}
+              <div className="flex justify-between items-center p-4 border-b border-slate-100 bg-slate-50">
+                <div className="flex items-center gap-4">
+                  <h3 className="font-bold text-slate-800 flex items-center gap-2"><BookOpen size={18} className="text-indigo-500"/> {t.manualTitle}</h3>
+                  <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200">
+                     <button onClick={() => setManualTab('pdf')} className={`flex items-center gap-2 px-3 py-1 rounded-md text-xs font-bold transition-all ${manualTab === 'pdf' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}><FileTextIcon size={14}/> {t.tabPdf}</button>
+                     <button onClick={() => setManualTab('video')} className={`flex items-center gap-2 px-3 py-1 rounded-md text-xs font-bold transition-all ${manualTab === 'video' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}><Video size={14}/> {t.tabVideo}</button>
                   </div>
-                )}
-             </div>
+                </div>
+                <button onClick={() => setShowManual(false)} className="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-200 rounded-full transition-colors"><X size={20} /></button>
+              </div>
+
+              <div className="flex-1 bg-slate-100 relative overflow-hidden">
+                 {manualTab === 'pdf' ? (
+                   <>
+                     <iframe src={`manual-${manualLang}.pdf`} className="w-full h-full" title="User Manual"></iframe>
+                     <div className="absolute bottom-4 right-4 z-10">
+                         <a href={`manual-${manualLang}.pdf`} target="_blank" rel="noreferrer" className="flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur text-slate-600 text-xs font-medium rounded-full shadow-lg border border-slate-200 hover:text-indigo-600 hover:border-indigo-200 transition-colors">
+                           <Download size={12}/> {t.downloadPdf}
+                         </a>
+                     </div>
+                   </>
+                 ) : (
+                   <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 text-slate-300">
+                     <video key={manualLang} controls className="w-full h-full max-w-5xl max-h-[80vh] shadow-2xl rounded-xl bg-black" poster="video-poster.png">
+                       <source src={`demo-${manualLang}.mp4`} type="video/mp4" />
+                       {t.videoNotice}
+                     </video>
+                   </div>
+                 )}
+              </div>
           </div>
         </div>
       )}
@@ -1035,29 +1155,29 @@ User Input: "${expression}"`.trim();
       {showChipWizard && (
         <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm z-[60] flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-white rounded-2xl shadow-2xl w-[500px] overflow-hidden animate-in zoom-in-95 duration-200 border border-white/20 ring-1 ring-black/5">
-             <div className="flex justify-between items-center p-5 border-b border-slate-100"><h3 className="font-bold text-slate-800 flex items-center gap-2"><Cpu size={18} className="text-indigo-500"/> {t.chipWizardTitle}</h3><button onClick={() => setShowChipWizard(false)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button></div>
-             <div className="p-6 space-y-4 bg-slate-50/50">
-               <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider">{t.chipName}</label>
-                  <input type="text" value={wizardData.name} onChange={e => setWizardData({...wizardData, name: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="e.g. 74LS00" />
-               </div>
-               <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider">{t.chipWidth} (px)</label>
-                  <input type="number" value={wizardData.width} onChange={e => setWizardData({...wizardData, width: parseInt(e.target.value) || 100})} className="w-full p-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" />
-               </div>
-               <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider">{t.leftPins}</label>
-                  <textarea value={wizardData.inputStr} onChange={e => setWizardData({...wizardData, inputStr: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm h-20 resize-none" placeholder={t.pinsPlaceholder} />
-               </div>
-               <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider">{t.rightPins}</label>
-                  <textarea value={wizardData.outputStr} onChange={e => setWizardData({...wizardData, outputStr: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm h-20 resize-none" placeholder={t.pinsPlaceholder} />
-               </div>
-             </div>
-             <div className="p-5 border-t border-slate-100 bg-white flex justify-end gap-3">
-               <button onClick={() => setShowChipWizard(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors">{t.cancel}</button>
-               <button onClick={saveCustomChip} className="px-5 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium flex items-center gap-2 shadow-md transition-all hover:-translate-y-0.5"><Save size={16} /> {t.saveChip}</button>
-             </div>
+              <div className="flex justify-between items-center p-5 border-b border-slate-100"><h3 className="font-bold text-slate-800 flex items-center gap-2"><Cpu size={18} className="text-indigo-500"/> {t.chipWizardTitle}</h3><button onClick={() => setShowChipWizard(false)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button></div>
+              <div className="p-6 space-y-4 bg-slate-50/50">
+                <div>
+                   <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider">{t.chipName}</label>
+                   <input type="text" value={wizardData.name} onChange={e => setWizardData({...wizardData, name: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="e.g. 74LS00" />
+                </div>
+                <div>
+                   <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider">{t.chipWidth} (px)</label>
+                   <input type="number" value={wizardData.width} onChange={e => setWizardData({...wizardData, width: parseInt(e.target.value) || 100})} className="w-full p-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" />
+                </div>
+                <div>
+                   <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider">{t.leftPins}</label>
+                   <textarea value={wizardData.inputStr} onChange={e => setWizardData({...wizardData, inputStr: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm h-20 resize-none" placeholder={t.pinsPlaceholder} />
+                </div>
+                <div>
+                   <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider">{t.rightPins}</label>
+                   <textarea value={wizardData.outputStr} onChange={e => setWizardData({...wizardData, outputStr: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm h-20 resize-none" placeholder={t.pinsPlaceholder} />
+                </div>
+              </div>
+              <div className="p-5 border-t border-slate-100 bg-white flex justify-end gap-3">
+                <button onClick={() => setShowChipWizard(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors">{t.cancel}</button>
+                <button onClick={saveCustomChip} className="px-5 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium flex items-center gap-2 shadow-md transition-all hover:-translate-y-0.5"><Save size={16} /> {t.saveChip}</button>
+              </div>
           </div>
         </div>
       )}
@@ -1118,7 +1238,7 @@ User Input: "${expression}"`.trim();
       {showPromptModal && (<div className="absolute inset-0 bg-slate-900/30 backdrop-blur-sm z-[60] flex items-center justify-center p-4 animate-in fade-in"><div className="bg-white rounded-2xl shadow-2xl w-[600px] flex flex-col max-h-[80vh] overflow-hidden animate-in zoom-in-95 duration-200"><div className="flex justify-between items-center p-5 border-b border-slate-100"><h3 className="font-bold text-slate-800 flex items-center gap-2"><MessageSquare size={18} className="text-purple-500"/> {t.aiPromptTitle}</h3><button onClick={() => setShowPromptModal(false)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button></div><div className="p-6 flex-1 overflow-auto bg-slate-50/50"><p className="text-sm text-slate-500 mb-3">{t.aiPromptDesc}</p><div className="bg-white border border-slate-200 p-4 rounded-xl text-xs font-mono text-slate-600 whitespace-pre-wrap leading-relaxed shadow-sm">{aiPrompt}</div></div><div className="p-5 border-t border-slate-100 bg-white flex justify-end gap-3"><button onClick={() => setShowPromptModal(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors">{t.close}</button><button onClick={() => { copyToClipboard(aiPrompt); setShowPromptModal(false); }} className="px-5 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium flex items-center gap-2 shadow-md shadow-purple-100 transition-all hover:-translate-y-0.5"><Copy size={16} /> {t.copyClose}</button></div></div></div>)}
 
       <div className="flex flex-1 overflow-hidden relative">
-        <div className="w-64 bg-white border-r border-slate-200 flex flex-col p-5 gap-8 overflow-y-auto z-10 shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
+        <div className={`w-64 bg-white border-r border-slate-200 flex flex-col p-5 gap-8 overflow-y-auto z-10 shadow-[4px_0_24px_rgba(0,0,0,0.02)] transition-opacity duration-300 ${simulationRunning ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
           <div><h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2"><ArrowRightLeft size={12} /> {t.input} / {t.output}</h3><div className="grid grid-cols-2 gap-3"><PaletteItem type="INPUT" onClick={() => addElement('INPUT')} onDragStart={(e) => handleDragStart(e, 'INPUT')} label="Input" /><PaletteItem type="OUTPUT" onClick={() => addElement('OUTPUT')} onDragStart={(e) => handleDragStart(e, 'OUTPUT')} label="Output" /></div></div>
           <div><h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2"><Grid size={12} /> {t.basicGates}</h3><div className="grid grid-cols-2 gap-3"><PaletteItem type="AND" onClick={() => addElement('AND')} onDragStart={(e) => handleDragStart(e, 'AND')} /><PaletteItem type="OR" onClick={() => addElement('OR')} onDragStart={(e) => handleDragStart(e, 'OR')} /><PaletteItem type="NOT" onClick={() => addElement('NOT')} onDragStart={(e) => handleDragStart(e, 'NOT')} /><PaletteItem type="NAND" onClick={() => addElement('NAND')} onDragStart={(e) => handleDragStart(e, 'NAND')} /><PaletteItem type="NOR" onClick={() => addElement('NOR')} onDragStart={(e) => handleDragStart(e, 'NOR')} /><PaletteItem type="XOR" onClick={() => addElement('XOR')} onDragStart={(e) => handleDragStart(e, 'XOR')} /><PaletteItem type="XNOR" onClick={() => addElement('XNOR')} onDragStart={(e) => handleDragStart(e, 'XNOR')} /></div></div>
           <div><h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2"><Cpu size={12} /> {t.integratedCircuits}</h3><div className="grid grid-cols-2 gap-3"><PaletteItem type="NAND4" onClick={() => addElement('NAND4')} onDragStart={(e) => handleDragStart(e, 'NAND4')} label="4-In NAND" /><PaletteItem type="IC_74LS138" onClick={() => addElement('IC_74LS138')} onDragStart={(e) => handleDragStart(e, 'IC_74LS138')} label="74LS138" viewBoxOverride="0 0 100 280"/><PaletteItem type="IC_74LS153" onClick={() => addElement('IC_74LS153')} onDragStart={(e) => handleDragStart(e, 'IC_74LS153')} label="74LS153" viewBoxOverride="0 0 100 340"/></div></div>
@@ -1138,18 +1258,43 @@ User Input: "${expression}"`.trim();
           <div><h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2"><Zap size={12} /> {t.powerGround}</h3><div className="grid grid-cols-2 gap-3"><PaletteItem type="VCC" onClick={() => addElement('VCC')} onDragStart={(e) => handleDragStart(e, 'VCC')} label="VCC (5V)" /><PaletteItem type="GND" onClick={() => addElement('GND')} onDragStart={(e) => handleDragStart(e, 'GND')} label="GND" /></div></div>
         </div>
 
-        <div className="flex-1 bg-slate-50/50 relative overflow-hidden cursor-crosshair">
+        <div className={`flex-1 relative overflow-hidden ${simulationRunning ? 'cursor-default' : 'cursor-crosshair'}`}>
+          <div className={`absolute inset-0 transition-colors duration-500 ${simulationRunning ? 'bg-slate-100' : 'bg-slate-50/50'}`}></div>
           <div className="absolute inset-0 pointer-events-none opacity-[0.15]" style={{ backgroundImage: `radial-gradient(#94a3b8 1px, transparent 1px)`, backgroundSize: `${GRID_SIZE * view.k}px ${GRID_SIZE * view.k}px`, backgroundPosition: `${view.x}px ${view.y}px` }} />
-          <svg ref={svgRef} className="w-full h-full" onMouseDown={(e) => handleMouseDown(e, null)} onWheel={handleWheel}>
+
+          {simulationRunning && <div className="absolute top-4 left-4 z-10 px-3 py-1.5 bg-red-100/80 backdrop-blur border border-red-200 rounded-full text-red-600 text-xs font-bold flex items-center gap-2 animate-pulse pointer-events-none"><Activity size={14}/> {t.simRunning}</div>}
+
+          {alignmentGuides.length > 0 && (
+              <svg className="absolute inset-0 w-full h-full pointer-events-none z-50">
+                  {alignmentGuides.map((guide, i) => (
+                      guide.type === 'x'
+                      ? <line key={i} x1={guide.pos * view.k + view.x} y1={0} x2={guide.pos * view.k + view.x} y2="100%" stroke="#3b82f6" strokeWidth={1} strokeDasharray="4 2" />
+                      : <line key={i} x1={0} y1={guide.pos * view.k + view.y} x2="100%" y2={guide.pos * view.k + view.y} stroke="#3b82f6" strokeWidth={1} strokeDasharray="4 2" />
+                  ))}
+              </svg>
+          )}
+
+          <svg ref={svgRef} className="w-full h-full relative z-0" onMouseDown={(e) => handleMouseDown(e, null)} onWheel={handleWheel}>
             <g className="content-layer" transform={`translate(${view.x}, ${view.y}) scale(${view.k})`}>
               {wires.map((wire, idx) => {
                 const startPos = getPortPos(wire.from, 'output', wire.fromIndex);
                 const endPos = getPortPos(wire.to, 'input', wire.toIndex);
+                // Determine wire color based on simulation state
+                let color = WIRE_COLOR_NEUTRAL; // Default Slate
+                if (simulationRunning) {
+                    const fromId = wire.from;
+                    const fromIndex = wire.fromIndex || 0;
+                    const val = nodeStates[`${fromId}_${fromIndex}`] !== undefined
+                                ? nodeStates[`${fromId}_${fromIndex}`]
+                                : (fromIndex === 0 ? nodeStates[fromId] : 0);
+                    color = (val === 1) ? WIRE_COLOR_HIGH : WIRE_COLOR_LOW;
+                }
+
                 return (
                   <g key={wire.id}>
-                    <path d={getManhattanPath(startPos.x, startPos.y, endPos.x, endPos.y, idx)} stroke={WIRE_COLOR} strokeWidth={WIRE_WIDTH} fill="none" className="drop-shadow-sm" />
-                    <circle cx={startPos.x} cy={startPos.y} r={3} fill={WIRE_COLOR} />
-                    <circle cx={endPos.x} cy={endPos.y} r={3} fill={WIRE_COLOR} />
+                    <path d={getManhattanPath(startPos.x, startPos.y, endPos.x, endPos.y)} stroke={color} strokeWidth={WIRE_WIDTH} fill="none" className="drop-shadow-sm transition-colors duration-200" />
+                    <circle cx={startPos.x} cy={startPos.y} r={3} fill={color} className="transition-colors duration-200" />
+                    <circle cx={endPos.x} cy={endPos.y} r={3} fill={color} className="transition-colors duration-200" />
                   </g>
                 );
               })}
@@ -1157,32 +1302,74 @@ User Input: "${expression}"`.trim();
                 <path d={getManhattanPath(getPortPos(connecting.elementId, connecting.portType, connecting.portIndex).x, getPortPos(connecting.elementId, connecting.portType, connecting.portIndex).y, (mousePos.x - view.x)/view.k, (mousePos.y - view.y)/view.k)} stroke="blue" strokeWidth={2} strokeDasharray="4 4" fill="none" pointerEvents="none" />
               )}
               {elements.map(el => (
-                <g key={el.id} transform={`translate(${el.x},${el.y})`} onMouseDown={(e) => handleMouseDown(e, el.id)} className="cursor-move select-none group">
+                <g key={el.id} transform={`translate(${el.x},${el.y})`} onMouseDown={(e) => handleMouseDown(e, el.id, el.type)} className={`select-none group ${simulationRunning ? '' : 'cursor-move'}`}>
                   <rect x="-10" y="-30" width={el.type.startsWith('INPUT') || el.type.startsWith('OUTPUT') || el.type === 'VCC' || el.type === 'GND' ? 60 : (el.type.startsWith('IC_') || el.type.startsWith('CUSTOM_') ? (el.type.startsWith('CUSTOM_') ? customChips.find(c=>c.id===el.type)?.width + 20 || 120 : 120) : 90)} height={el.type.startsWith('IC_') ? (el.type === 'IC_74LS138' ? 300 : 360) : (el.type.startsWith('CUSTOM_') ? (customChips.find(c=>c.id===el.type)?.height + 40 || 100) : 100)} fill="transparent" stroke="transparent" />
 
                   {renderGate(el)}
 
                   {el.type === 'INPUT' && (
-                    <text x={appearance.simpleIO ? -25 : 0} y={36} textAnchor="end" fontFamily="ui-serif, Georgia, Cambria, serif" fontSize="18px" fontWeight="bold" fill="#1e293b" className="pointer-events-none select-none drop-shadow-sm">{el.label}</text>
+                    <g onDoubleClick={(e) => handleNodeDoubleClick(e, el.id, el.label)} className="cursor-text pointer-events-auto">
+                        {/* 扩大点击区域，使用高z-index确保不被遮挡 */}
+                        <rect x={appearance.simpleIO ? -60 : -20} y={10} width={80} height={40} fill="transparent" className="pointer-events-auto"/>
+
+                        {editingNodeId === el.id ? (
+                            <foreignObject x={appearance.simpleIO ? -80 : -55} y={20} width={60} height={30}>
+                                <input
+                                    autoFocus
+                                    className="w-full h-full px-1 text-right text-sm font-bold bg-white border border-indigo-300 rounded shadow focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    value={editingLabel}
+                                    onChange={(e) => setEditingLabel(e.target.value)}
+                                    onBlur={saveLabelChange}
+                                    onKeyDown={(e) => e.key === 'Enter' && saveLabelChange()}
+                                    onMouseDown={(e) => e.stopPropagation()}
+                                />
+                            </foreignObject>
+                        ) : (
+                            <text x={appearance.simpleIO ? -25 : 0} y={36} textAnchor="end" fontFamily="ui-serif, Georgia, Cambria, serif" fontSize="18px" fontWeight="bold" fill="#1e293b" className="select-none drop-shadow-sm group-hover:fill-indigo-600 transition-colors pointer-events-none">{el.label}</text>
+                        )}
+                        {!editingNodeId && <Edit3 size={12} className="text-slate-400 opacity-0 group-hover:opacity-100 absolute transition-opacity pointer-events-none" x={appearance.simpleIO ? -45 : -20} y={25} />}
+                    </g>
                   )}
                   {el.type === 'OUTPUT' && (
-                    <text x={appearance.simpleIO ? 35 : 45} y={36} textAnchor="start" fontFamily="ui-serif, Georgia, Cambria, serif" fontSize="18px" fontWeight="bold" fill="#1e293b" className="pointer-events-none select-none drop-shadow-sm">{el.label}</text>
+                    <g onDoubleClick={(e) => handleNodeDoubleClick(e, el.id, el.label)} className="cursor-text pointer-events-auto">
+                        <rect x={appearance.simpleIO ? 20 : 30} y={10} width={80} height={40} fill="transparent" className="pointer-events-auto"/>
+
+                        {editingNodeId === el.id ? (
+                            <foreignObject x={appearance.simpleIO ? 35 : 45} y={20} width={60} height={30}>
+                                <input
+                                    autoFocus
+                                    className="w-full h-full px-1 text-left text-sm font-bold bg-white border border-indigo-300 rounded shadow focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    value={editingLabel}
+                                    onChange={(e) => setEditingLabel(e.target.value)}
+                                    onBlur={saveLabelChange}
+                                    onKeyDown={(e) => e.key === 'Enter' && saveLabelChange()}
+                                    onMouseDown={(e) => e.stopPropagation()}
+                                />
+                            </foreignObject>
+                        ) : (
+                            <text x={appearance.simpleIO ? 35 : 45} y={36} textAnchor="start" fontFamily="ui-serif, Georgia, Cambria, serif" fontSize="18px" fontWeight="bold" fill="#1e293b" className="select-none drop-shadow-sm group-hover:fill-indigo-600 transition-colors pointer-events-none">{el.label}</text>
+                        )}
+                        {!editingNodeId && <Edit3 size={12} className="text-slate-400 opacity-0 group-hover:opacity-100 absolute transition-opacity pointer-events-none" x={appearance.simpleIO ? 65 : 75} y={25} />}
+                    </g>
                   )}
 
-                  <g className="no-export opacity-0 group-hover:opacity-100 cursor-pointer transition-all duration-200 hover:scale-110" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); deleteElement(el.id); }} transform="translate(0, -20)">
-                    <circle r="15" fill="transparent" />
-                    <circle r="10" fill="#fee2e2" stroke="#ef4444" strokeWidth="1" className="shadow-sm"/>
-                    <path d="M -3 -3 L 3 3 M 3 -3 L -3 3" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" />
-                  </g>
+                  {!simulationRunning && (
+                    <g className="no-export opacity-0 group-hover:opacity-100 cursor-pointer transition-all duration-200 hover:scale-110" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); deleteElement(el.id); }} transform="translate(0, -20)">
+                        <circle r="15" fill="transparent" />
+                        <circle r="10" fill="#fee2e2" stroke="#ef4444" strokeWidth="1" className="shadow-sm"/>
+                        <path d="M -3 -3 L 3 3 M 3 -3 L -3 3" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" />
+                    </g>
+                  )}
 
+                  {/* Ports - Only interactive when NOT simulating, OR specific cases */}
                   {PORT_CONFIG[el.type] ? (
                       // Standard Ports
                       <>
                         {PORT_CONFIG[el.type].inputs.map((pos, idx) => (
-                          <circle key={`in-${idx}`} cx={pos.x} cy={pos.y} r={5} fill="transparent" stroke="transparent" className="hover:fill-indigo-500 hover:stroke-indigo-200 hover:stroke-4 cursor-crosshair transition-all" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => handlePortClick(e, el.id, 'input', idx)} />
+                          <circle key={`in-${idx}`} cx={pos.x} cy={pos.y} r={5} fill="transparent" stroke="transparent" className={`${simulationRunning ? '' : 'hover:fill-indigo-500 hover:stroke-indigo-200 hover:stroke-4 cursor-crosshair'} transition-all`} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => handlePortClick(e, el.id, 'input', idx)} />
                         ))}
                         {PORT_CONFIG[el.type].outputs.map((pos, idx) => (
-                          <circle key={`out-${idx}`} cx={pos.x} cy={pos.y} r={5} fill="transparent" stroke="transparent" className="hover:fill-indigo-500 hover:stroke-indigo-200 hover:stroke-4 cursor-crosshair transition-all" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => handlePortClick(e, el.id, 'output', idx)} />
+                          <circle key={`out-${idx}`} cx={pos.x} cy={pos.y} r={5} fill="transparent" stroke="transparent" className={`${simulationRunning ? '' : 'hover:fill-indigo-500 hover:stroke-indigo-200 hover:stroke-4 cursor-crosshair'} transition-all`} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => handlePortClick(e, el.id, 'output', idx)} />
                         ))}
                       </>
                    ) : (
@@ -1193,10 +1380,10 @@ User Input: "${expression}"`.trim();
                           return (
                               <>
                                 {chip.inputs.map((_, idx) => (
-                                  <circle key={`cin-${idx}`} cx={0} cy={45 + idx*20} r={5} fill="transparent" stroke="transparent" className="hover:fill-indigo-500 hover:stroke-indigo-200 hover:stroke-4 cursor-crosshair transition-all" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => handlePortClick(e, el.id, 'input', idx)} />
+                                  <circle key={`cin-${idx}`} cx={0} cy={45 + idx*20} r={5} fill="transparent" stroke="transparent" className={`${simulationRunning ? '' : 'hover:fill-indigo-500 hover:stroke-indigo-200 hover:stroke-4 cursor-crosshair'} transition-all`} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => handlePortClick(e, el.id, 'input', idx)} />
                                 ))}
                                 {chip.outputs.map((_, idx) => (
-                                  <circle key={`cout-${idx}`} cx={chip.width} cy={45 + idx*20} r={5} fill="transparent" stroke="transparent" className="hover:fill-indigo-500 hover:stroke-indigo-200 hover:stroke-4 cursor-crosshair transition-all" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => handlePortClick(e, el.id, 'output', idx)} />
+                                  <circle key={`cout-${idx}`} cx={chip.width} cy={45 + idx*20} r={5} fill="transparent" stroke="transparent" className={`${simulationRunning ? '' : 'hover:fill-indigo-500 hover:stroke-indigo-200 hover:stroke-4 cursor-crosshair'} transition-all`} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => handlePortClick(e, el.id, 'output', idx)} />
                                 ))}
                               </>
                           );
@@ -1214,7 +1401,7 @@ User Input: "${expression}"`.trim();
                <button onClick={() => setView(v => ({ ...v, k: Math.min(5, v.k + 0.1) }))} className="p-2 hover:bg-white rounded-xl text-slate-500 hover:text-indigo-600 transition-colors"><ZoomIn size={18} /></button>
              </div>
              <button onClick={() => setView({ x: 0, y: 0, k: 1 })} className="p-2 hover:bg-white rounded-xl text-slate-500 hover:text-indigo-600 transition-colors group relative" title={t.reset}><RotateCcw size={18} /><span className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">{t.reset}</span></button>
-             <button onClick={clearCanvas} className="p-2 hover:bg-red-50 rounded-xl text-slate-500 hover:text-red-500 transition-colors group relative" title={t.clear}><Trash2 size={18} /><span className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">{t.clear}</span></button>
+             <button onClick={clearCanvas} disabled={simulationRunning} className={`p-2 rounded-xl transition-colors group relative ${simulationRunning ? 'text-slate-300 cursor-not-allowed' : 'hover:bg-red-50 text-slate-500 hover:text-red-500'}`} title={t.clear}><Trash2 size={18} /><span className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">{t.clear}</span></button>
              <div className="w-px h-6 bg-slate-200/50 mx-1"></div>
              <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-medium transition-colors shadow-lg shadow-slate-200"><Download size={16} /><span>{t.export}</span></button>
           </div>
