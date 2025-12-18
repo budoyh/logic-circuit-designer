@@ -9,14 +9,13 @@ import {
 } from 'lucide-react';
 
 /**
- * 逻辑电路设计器 v7.9.3
- * 变更日志:
- * 1. 修复：移除了 IC_SVGS 中的动态变量引用 (simulationRunning, c1Q 等)，修复了 ReferenceError。
- * 2. 保持：74LS153 的 1G 和 2G 引脚标签添加上划线。
- * 3. 保持：所有仿真逻辑和动态渲染在 renderGate 中正常工作。
+ * 逻辑电路设计器 v7.9.4 (优化版)
+ * 核心修复:
+ * 1. 完美连接点 (Junction Dots): 只有真正的线路分支点才会显示黑点，交叉不显示。
+ * 2. 纯净导出: 修复了导出图片时包含编辑图标的问题。
  */
 
-// --- 多语言配置 ---
+// --- 多语言配置 (保持不变) ---
 const TRANSLATIONS = {
   zh: {
     title: "逻辑电路生成器",
@@ -184,24 +183,19 @@ const SHAPES = {
 
 const GATE_PATHS = { ...SHAPES, INPUT: SHAPES.INPUT_STD, OUTPUT: SHAPES.OUTPUT_STD };
 
-// IC SVGs (Static versions for Palette - NO dynamic logic here to fix ReferenceError)
+// IC SVGs (Palette Icons Only)
 const IC_SVGS = {
   IC_74LS138: <g>
     <rect x="0" y="0" width="100" height="260" rx="4" fill="white" stroke="currentColor" strokeWidth={2} />
     <text x="50" y="25" textAnchor="middle" fontSize="14" fontWeight="bold" fill="#334155">74LS138</text>
-    {/* Inputs A, B, C */}
     <text x="8" y="55" fontSize="12" fill="#64748b" dominantBaseline="middle">A</text>
     <text x="8" y="75" fontSize="12" fill="#64748b" dominantBaseline="middle">B</text>
     <text x="8" y="95" fontSize="12" fill="#64748b" dominantBaseline="middle">C</text>
-    {/* Enable Inputs */}
     <text x="8" y="125" fontSize="12" fill="#64748b" dominantBaseline="middle">G1</text>
-    {/* G2A Active Low */}
     <circle cx="5" cy="145" r="3" fill="white" stroke="#64748b" strokeWidth="1.5"/>
     <text x="12" y="145" fontSize="12" fill="#64748b" dominantBaseline="middle" textDecoration="overline">G2A</text>
-    {/* G2B Active Low */}
     <circle cx="5" cy="165" r="3" fill="white" stroke="#64748b" strokeWidth="1.5"/>
     <text x="12" y="165" fontSize="12" fill="#64748b" dominantBaseline="middle" textDecoration="overline">G2B</text>
-    {/* Outputs Y0-Y7 Active Low */}
     {[0,1,2,3,4,5,6,7].map(i => (
       <React.Fragment key={i}>
         <text x="92" y={85 + i*20} textAnchor="end" fontSize="12" fill="#64748b" dominantBaseline="middle" textDecoration="overline">Y{i}</text>
@@ -222,7 +216,6 @@ const IC_SVGS = {
     <text x="8" y="165" fontSize="11" fill="#64748b" dominantBaseline="middle">1C2</text>
     <text x="8" y="185" fontSize="11" fill="#64748b" dominantBaseline="middle">1C3</text>
     <text x="92" y="145" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle">1Y</text>
-
     <line x1="5" y1="195" x2="95" y2="195" stroke="#e2e8f0" strokeDasharray="3 3"/>
     <text x="12" y="215" fontSize="11" fill="#64748b" dominantBaseline="middle" textDecoration="overline">2G</text>
     <circle cx="5" cy="215" r="3" fill="white" stroke="#64748b" strokeWidth="1.5"/>
@@ -265,8 +258,6 @@ const IC_SVGS = {
     <rect x="0" y="0" width="100" height="240" rx="4" fill="white" stroke="currentColor" strokeWidth={2} />
     <text x="50" y="25" textAnchor="middle" fontSize="14" fontWeight="bold" fill="#334155">74LS74</text>
     <line x1="10" y1="125" x2="90" y2="125" stroke="#e2e8f0" strokeDasharray="3 3"/>
-
-    {/* Unit 1 */}
     <text x="8" y="55" fontSize="12" fill="#64748b" dominantBaseline="middle">1D</text>
     <text x="14" y="75" fontSize="12" fill="#64748b" dominantBaseline="middle">1CLK</text>
     <path d="M 0 72 L 6 75 L 0 78" fill="none" stroke="#64748b" strokeWidth={1} />
@@ -277,8 +268,6 @@ const IC_SVGS = {
     <text x="92" y="65" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle">1Q</text>
     <text x="92" y="95" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle" textDecoration="overline">1Q'</text>
     <circle cx="96" cy="95" r="3" fill="white" stroke="currentColor" strokeWidth={1.5} />
-
-    {/* Unit 2 */}
     <text x="8" y="145" fontSize="12" fill="#64748b" dominantBaseline="middle">2D</text>
     <text x="14" y="165" fontSize="12" fill="#64748b" dominantBaseline="middle">2CLK</text>
     <path d="M 0 162 L 6 165 L 0 168" fill="none" stroke="#64748b" strokeWidth={1} />
@@ -573,43 +562,62 @@ const simulateCircuit = (elements, wires, initialStates) => {
   return currentState;
 };
 
-// --- New Component: Junction Dots ---
+// --- New Component: Junction Dots (Refined Logic) ---
 const Junctions = ({ wires, getPortPos, simulationRunning, nodeStates }) => {
   const dots = useMemo(() => {
-    const sourceGroups = {};
+    const dotsArr = [];
+    const groups = {};
     wires.forEach(w => {
-      const key = `${w.from}_${w.fromIndex || 0}`;
-      if (!sourceGroups[key]) sourceGroups[key] = [];
-      sourceGroups[key].push(w);
+        const key = `${w.from}_${w.fromIndex || 0}`;
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(w);
     });
 
-    const calculatedDots = [];
-    Object.keys(sourceGroups).forEach(key => {
-      const group = sourceGroups[key];
-      if (group.length < 2) return;
+    Object.keys(groups).forEach(key => {
+        const groupWires = groups[key];
+        if (groupWires.length < 2) return;
 
-      const [sourceId, sourceIdx] = key.split('_');
-      const startPos = getPortPos(sourceId, 'output', parseInt(sourceIdx));
+        const [srcId, srcIdx] = key.split('_');
+        const startPos = getPortPos(srcId, 'output', parseInt(srcIdx));
 
-      const midXCounts = {};
-      group.forEach(w => {
-          const endPos = getPortPos(w.to, 'input', w.toIndex);
-          const midX = (startPos.x + endPos.x) / 2;
-          const k = Math.round(midX * 10) / 10;
-          if(!midXCounts[k]) midXCounts[k] = 0;
-          midXCounts[k]++;
-      });
+        // Get all midXs (the vertical drop line X-coordinate)
+        const midXs = groupWires.map(w => {
+            const endPos = getPortPos(w.to, 'input', w.toIndex);
+            let midX = (startPos.x + endPos.x) / 2;
+            // Handle loop-back logic matching getManhattanPath
+            if (endPos.x < startPos.x + 20) {
+                 midX = startPos.x + 40;
+            }
+            return midX;
+        });
 
-      Object.keys(midXCounts).forEach(mxStr => {
-          if (midXCounts[mxStr] > 1) {
-              const mx = parseFloat(mxStr);
-              if (Math.abs(mx - startPos.x) > 5) {
-                  calculatedDots.push({ x: mx, y: startPos.y, sourceKey: key });
-              }
-          }
-      });
+        // Count occurrences of each midX
+        const midXCounts = {};
+        midXs.forEach(mx => {
+            const rmx = Math.round(mx);
+            midXCounts[rmx] = (midXCounts[rmx] || 0) + 1;
+        });
+
+        const uniqueXs = Object.keys(midXCounts).map(Number).sort((a,b) => a-b);
+
+        uniqueXs.forEach((x, index) => {
+            const countHere = midXCounts[x];
+            // Check if any wire continues PAST this x (i.e. has a midX greater than this x)
+            const continuesPast = uniqueXs.slice(index + 1).length > 0;
+
+            // Logic: Draw a dot if:
+            // 1. More than one wire splits UP/DOWN at this X (count > 1)
+            // OR
+            // 2. One wire turns here, but another continues horizontally (continuesPast)
+            if (countHere > 1 || continuesPast) {
+                // Do not draw dot on the pin itself (rare, but avoids clutter)
+                if (Math.abs(x - startPos.x) > 1) {
+                     dotsArr.push({ x, y: startPos.y, sourceKey: key });
+                }
+            }
+        });
     });
-    return calculatedDots;
+    return dotsArr;
   }, [wires, getPortPos]);
 
   return (
@@ -714,7 +722,7 @@ export default function LogicCircuitDesigner() {
   // --- Save / Load Project Functions ---
   const handleSaveProject = () => {
     const projectData = {
-      version: "7.9.3",
+      version: "7.9.4",
       timestamp: Date.now(),
       elements,
       wires,
@@ -1169,8 +1177,14 @@ export default function LogicCircuitDesigner() {
   const handleExport = () => {
     if (!svgRef.current) return;
     const clone = svgRef.current.cloneNode(true);
+    // Explicitly find and remove elements marked 'no-export'
     const uiElements = clone.querySelectorAll(".no-export");
     uiElements.forEach(el => el.remove());
+
+    // Also remove any guides or helpers that might not have the class
+    const guides = clone.querySelectorAll("line[stroke-dasharray='4 2']");
+    guides.forEach(el => el.remove());
+
     const gContent = clone.querySelector(".content-layer");
     if (gContent) gContent.setAttribute("transform", "");
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -1378,7 +1392,7 @@ User Input: "${expression}"`.trim();
 
     <div className="flex flex-col h-screen bg-slate-50 text-slate-900 font-sans selection:bg-indigo-100 selection:text-indigo-700" onMouseMove={handleGlobalMouseMove} onMouseUp={handleGlobalMouseUp} onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}>
       <div className="h-16 bg-white/90 backdrop-blur-md border-b border-slate-200 px-6 flex items-center justify-between z-20 shadow-sm relative">
-        <div className="flex items-center gap-4"><div className="bg-gradient-to-br from-indigo-600 to-violet-600 p-2.5 rounded-xl shadow-lg shadow-indigo-200"><Layout className="text-white w-5 h-5" strokeWidth={2.5} /></div><div><h1 className="text-xl font-bold tracking-tight text-slate-900">LogicCircuit <span className="text-indigo-600">Gen</span></h1><div className="flex items-center gap-2 text-xs font-medium text-slate-500 mt-0.5"><span>v7.9.3</span><span className="w-1 h-1 bg-slate-300 rounded-full"></span><span className="flex items-center gap-1">{t.by} <a href="https://github.com/budoyh" target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline font-medium">不懂</a></span><a href="https://github.com/budoyh/logic-circuit-designer" target="_blank" rel="noreferrer" className="text-slate-400 hover:text-slate-900 transition-colors ml-1" title={t.viewSource}><Github size={14} /></a></div></div></div>
+        <div className="flex items-center gap-4"><div className="bg-gradient-to-br from-indigo-600 to-violet-600 p-2.5 rounded-xl shadow-lg shadow-indigo-200"><Layout className="text-white w-5 h-5" strokeWidth={2.5} /></div><div><h1 className="text-xl font-bold tracking-tight text-slate-900">LogicCircuit <span className="text-indigo-600">Gen</span></h1><div className="flex items-center gap-2 text-xs font-medium text-slate-500 mt-0.5"><span>v7.9.4</span><span className="w-1 h-1 bg-slate-300 rounded-full"></span><span className="flex items-center gap-1">{t.by} <a href="https://github.com/budoyh" target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline font-medium">不懂</a></span><a href="https://github.com/budoyh/logic-circuit-designer" target="_blank" rel="noreferrer" className="text-slate-400 hover:text-slate-900 transition-colors ml-1" title={t.viewSource}><Github size={14} /></a></div></div></div>
         <div className="flex items-center gap-3">
            {/* Simulation Control */}
            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 mr-2">
