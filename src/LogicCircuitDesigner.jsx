@@ -9,13 +9,16 @@ import {
 } from 'lucide-react';
 
 /**
- * 逻辑电路设计器 v7.9.4 (优化版)
- * 核心修复:
- * 1. 完美连接点 (Junction Dots): 只有真正的线路分支点才会显示黑点，交叉不显示。
- * 2. 纯净导出: 修复了导出图片时包含编辑图标的问题。
+ * 逻辑电路设计器 v7.10.0
+ * 变更日志:
+ * 1. 新增：连线选择与删除功能。
+ * - 点击连线可选中（高亮显示）。
+ * - 按 Delete/Backspace 键删除选中连线。
+ * 2. 优化：连线增加透明点击判定区，更容易点中。
+ * 3. 保持：所有原有功能（Junction Dots, 74LS 系列芯片, 仿真等）。
  */
 
-// --- 多语言配置 (保持不变) ---
+// --- 多语言配置 ---
 const TRANSLATIONS = {
   zh: {
     title: "逻辑电路生成器",
@@ -62,7 +65,7 @@ const TRANSLATIONS = {
     guideStep1: "1. 智能生成：输入布尔公式自动生成电路。",
     guideStep2: "2. 电路仿真：点击顶部的 ▶ 按钮开启仿真，点击输入端子改变电平。",
     guideStep3: "3. 智能对齐：拖动组件时会出现辅助线，帮助您手动对齐组件。",
-    guideStep4: "4. 撤销/保存：使用底部的撤销按钮纠错，或保存为文件以便下次编辑。",
+    guideStep4: "4. 连线管理：点击连线选中（变橙色），按 Delete 键删除连线。", // Updated
     moreInfo: "请访问作者主页查看详细使用文档。作者邮箱：budo0422@outlook.com",
     startUsing: "开始使用",
     language: "English",
@@ -130,7 +133,7 @@ const TRANSLATIONS = {
     guideStep1: "1. Auto Gen: Input boolean formulas to generate.",
     guideStep2: "2. Simulation: Click ▶ to start. Click Inputs to toggle voltage.",
     guideStep3: "3. Smart Snap: Drag gates to see alignment guides for easy layout.",
-    guideStep4: "4. Undo/Save: Use Undo at bottom to fix mistakes, or Save to file.",
+    guideStep4: "4. Wires: Click a wire to select (orange), press Delete to remove.", // Updated
     moreInfo: "Visit author's homepage for detailed docs. Email: budo0422@outlook.com",
     startUsing: "Start Designing",
     language: "中文",
@@ -160,6 +163,7 @@ const GRID_SIZE = 20;
 const WIRE_COLOR_NEUTRAL = "#334155";
 const WIRE_COLOR_LOW = "#ef4444";
 const WIRE_COLOR_HIGH = "#22c55e";
+const WIRE_COLOR_SELECTED = "#f59e0b"; // Orange/Amber
 const WIRE_WIDTH = 2;
 const GATE_STROKE_WIDTH = 2;
 
@@ -183,7 +187,7 @@ const SHAPES = {
 
 const GATE_PATHS = { ...SHAPES, INPUT: SHAPES.INPUT_STD, OUTPUT: SHAPES.OUTPUT_STD };
 
-// IC SVGs (Palette Icons Only)
+// IC SVGs
 const IC_SVGS = {
   IC_74LS138: <g>
     <rect x="0" y="0" width="100" height="260" rx="4" fill="white" stroke="currentColor" strokeWidth={2} />
@@ -667,6 +671,9 @@ export default function LogicCircuitDesigner() {
   const [history, setHistory] = useState([{ elements: [], wires: [] }]);
   const [historyStep, setHistoryStep] = useState(0);
 
+  // --- Wire Selection State (New) ---
+  const [selectedWireId, setSelectedWireId] = useState(null);
+
   const [alignmentGuides, setAlignmentGuides] = useState([]);
   const [editingNodeId, setEditingNodeId] = useState(null);
   const [editingLabel, setEditingLabel] = useState("");
@@ -705,6 +712,7 @@ export default function LogicCircuitDesigner() {
       setWires(prevState.wires);
       setHistoryStep(prevStep);
       setSimulationRunning(false);
+      setSelectedWireId(null);
     }
   };
 
@@ -716,13 +724,42 @@ export default function LogicCircuitDesigner() {
       setWires(nextState.wires);
       setHistoryStep(nextStep);
       setSimulationRunning(false);
+      setSelectedWireId(null);
     }
   };
+
+  // --- Wire Deletion Logic ---
+  const deleteWire = (id) => {
+      const newWires = wires.filter(w => w.id !== id);
+      setWires(newWires);
+      setSelectedWireId(null);
+      recordHistory(elements, newWires);
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Prevent deletion when typing in inputs
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+      if (simulationRunning) return;
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedWireId) {
+          deleteWire(selectedWireId);
+        }
+      }
+      if (e.key === 'Escape') {
+          setSelectedWireId(null);
+          setConnecting(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedWireId, simulationRunning, wires, elements, recordHistory]);
 
   // --- Save / Load Project Functions ---
   const handleSaveProject = () => {
     const projectData = {
-      version: "7.9.4",
+      version: "7.10.0",
       timestamp: Date.now(),
       elements,
       wires,
@@ -754,6 +791,7 @@ export default function LogicCircuitDesigner() {
           setHistory([{ elements: data.elements, wires: data.wires }]);
           setHistoryStep(0);
           setSimulationRunning(false);
+          setSelectedWireId(null);
         } else {
           alert(t.fileLoadError);
         }
@@ -769,6 +807,7 @@ export default function LogicCircuitDesigner() {
       const newState = !simulationRunning;
       setSimulationRunning(newState);
       if (newState) {
+          setSelectedWireId(null); // Clear selection on sim start
           const initial = {};
           elements.forEach(el => {
             if (el.type === 'VCC') initial[el.id] = 1;
@@ -1120,7 +1159,11 @@ export default function LogicCircuitDesigner() {
         setDraggingId(id);
         const el = elements.find(e => e.id === id);
         if (el) setDragStartPos({ x: el.x, y: el.y });
-    } else { startPan(e); }
+    } else {
+        // Background click
+        setSelectedWireId(null);
+        startPan(e);
+    }
   };
 
   const addElement = (type, x, y, label = "") => {
@@ -1392,7 +1435,7 @@ User Input: "${expression}"`.trim();
 
     <div className="flex flex-col h-screen bg-slate-50 text-slate-900 font-sans selection:bg-indigo-100 selection:text-indigo-700" onMouseMove={handleGlobalMouseMove} onMouseUp={handleGlobalMouseUp} onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}>
       <div className="h-16 bg-white/90 backdrop-blur-md border-b border-slate-200 px-6 flex items-center justify-between z-20 shadow-sm relative">
-        <div className="flex items-center gap-4"><div className="bg-gradient-to-br from-indigo-600 to-violet-600 p-2.5 rounded-xl shadow-lg shadow-indigo-200"><Layout className="text-white w-5 h-5" strokeWidth={2.5} /></div><div><h1 className="text-xl font-bold tracking-tight text-slate-900">LogicCircuit <span className="text-indigo-600">Gen</span></h1><div className="flex items-center gap-2 text-xs font-medium text-slate-500 mt-0.5"><span>v7.9.4</span><span className="w-1 h-1 bg-slate-300 rounded-full"></span><span className="flex items-center gap-1">{t.by} <a href="https://github.com/budoyh" target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline font-medium">不懂</a></span><a href="https://github.com/budoyh/logic-circuit-designer" target="_blank" rel="noreferrer" className="text-slate-400 hover:text-slate-900 transition-colors ml-1" title={t.viewSource}><Github size={14} /></a></div></div></div>
+        <div className="flex items-center gap-4"><div className="bg-gradient-to-br from-indigo-600 to-violet-600 p-2.5 rounded-xl shadow-lg shadow-indigo-200"><Layout className="text-white w-5 h-5" strokeWidth={2.5} /></div><div><h1 className="text-xl font-bold tracking-tight text-slate-900">LogicCircuit <span className="text-indigo-600">Gen</span></h1><div className="flex items-center gap-2 text-xs font-medium text-slate-500 mt-0.5"><span>v7.10.0</span><span className="w-1 h-1 bg-slate-300 rounded-full"></span><span className="flex items-center gap-1">{t.by} <a href="https://github.com/budoyh" target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline font-medium">不懂</a></span><a href="https://github.com/budoyh/logic-circuit-designer" target="_blank" rel="noreferrer" className="text-slate-400 hover:text-slate-900 transition-colors ml-1" title={t.viewSource}><Github size={14} /></a></div></div></div>
         <div className="flex items-center gap-3">
            {/* Simulation Control */}
            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 mr-2">
@@ -1604,11 +1647,23 @@ User Input: "${expression}"`.trim();
                     const val = nodeStates[`${fromId}_${fromIndex}`] !== undefined ? nodeStates[`${fromId}_${fromIndex}`] : (fromIndex === 0 ? nodeStates[fromId] : 0);
                     color = (val === 1) ? WIRE_COLOR_HIGH : WIRE_COLOR_LOW;
                 }
+                const isSelected = wire.id === selectedWireId;
+                const pathData = getManhattanPath(startPos.x, startPos.y, endPos.x, endPos.y);
+
                 return (
-                  <g key={wire.id}>
-                    <path d={getManhattanPath(startPos.x, startPos.y, endPos.x, endPos.y)} stroke={color} strokeWidth={WIRE_WIDTH} fill="none" className="drop-shadow-sm transition-colors duration-200" />
-                    <circle cx={startPos.x} cy={startPos.y} r={4} fill={color} className="transition-colors duration-200" />
-                    <circle cx={endPos.x} cy={endPos.y} r={4} fill={color} className="transition-colors duration-200" />
+                  <g key={wire.id}
+                     onMouseDown={(e) => {
+                       e.stopPropagation();
+                       if (!simulationRunning) setSelectedWireId(wire.id);
+                     }}
+                     className="cursor-pointer group"
+                  >
+                    {/* Invisible Hit Area (Thicker) */}
+                    <path d={pathData} stroke="transparent" strokeWidth={12} fill="none" />
+                    {/* Visible Wire */}
+                    <path d={pathData} stroke={isSelected ? WIRE_COLOR_SELECTED : color} strokeWidth={isSelected ? 3 : WIRE_WIDTH} fill="none" className="drop-shadow-sm transition-colors duration-200" />
+                    <circle cx={startPos.x} cy={startPos.y} r={4} fill={isSelected ? WIRE_COLOR_SELECTED : color} className="transition-colors duration-200" />
+                    <circle cx={endPos.x} cy={endPos.y} r={4} fill={isSelected ? WIRE_COLOR_SELECTED : color} className="transition-colors duration-200" />
                   </g>
                 );
               })}
