@@ -4,17 +4,16 @@ import {
   Image as ImageIcon, AlertTriangle, ArrowRightLeft, MessageSquare, Eye,
   CheckSquare, Square, Copy, ZoomIn, ZoomOut, Github, Grid, Cpu, Zap,
   Globe, User, BookOpen, ExternalLink, PlusSquare, Save, Layers,
-  FileText as FileTextIcon, Video, Play, Pause, Activity, Edit3, Magnet
+  FileText as FileTextIcon, Video, Play, Pause, Activity, Edit3, Magnet,
+  FolderOpen, Undo, Redo, FileJson // 新增图标
 } from 'lucide-react';
 
 /**
- * 逻辑电路设计器 v7.6.0
+ * 逻辑电路设计器 v7.7.0
  * 变更日志:
- * 1. 移除：删除了“一键美化布局”功能，因为它无法完美解决重叠问题。
- * 2. 新增：实现了“智能对齐辅助线 (Smart Alignment Guides)”。
- * - 拖拽组件时，会自动吸附到相邻组件的 X 或 Y 轴。
- * - 显示贯穿屏幕的蓝色虚线，辅助手动摆放整齐的电路。
- * 3. 保持：仿真、重命名、自定义芯片等功能完整保留。
+ * 1. 新增：撤销 (Undo) 与 重做 (Redo) 功能。
+ * 2. 新增：保存项目 (.json) 与 打开项目 功能。
+ * 3. 优化：保留了所有原有功能（智能对齐、仿真、自定义芯片等）。
  */
 
 // --- 多语言配置 ---
@@ -25,11 +24,14 @@ const TRANSLATIONS = {
     viewSource: "查看源码",
     appearance: "外观",
     smartGen: "智能生成",
-    // optimize: "美化布局", // Removed
     newChip: "新建芯片",
-    export: "导出",
+    export: "导出图片",
+    saveProject: "保存项目", // New
+    openProject: "打开项目", // New
     clear: "清空",
     reset: "复位",
+    undo: "撤销", // New
+    redo: "重做", // New
     input: "输入",
     output: "输出",
     basicGates: "基础逻辑门",
@@ -60,8 +62,8 @@ const TRANSLATIONS = {
     guideTitle: "快速上手指南",
     guideStep1: "1. 智能生成：输入布尔公式自动生成电路。",
     guideStep2: "2. 电路仿真：点击顶部的 ▶ 按钮开启仿真，点击输入端子改变电平。",
-    guideStep3: "3. 智能对齐：拖动组件时会出现辅助线，帮助您手动对齐组件。", // Updated
-    guideStep4: "4. 自定义名称：双击输入/输出组件上的文字即可修改名称。",
+    guideStep3: "3. 智能对齐：拖动组件时会出现辅助线，帮助您手动对齐组件。",
+    guideStep4: "4. 撤销/保存：使用底部的撤销按钮纠错，或保存为文件以便下次编辑。", // Updated
     moreInfo: "请访问作者主页查看详细使用文档。作者邮箱：budo0422@outlook.com",
     startUsing: "开始使用",
     language: "English",
@@ -81,6 +83,8 @@ const TRANSLATIONS = {
     simStop: "停止仿真",
     simRunning: "仿真运行中...",
     snapEnabled: "吸附已启用",
+    fileLoadError: "文件格式错误或损坏", // New
+    confirmClear: "确定要清空画布吗？此操作可以被撤销。", // New
   },
   en: {
     title: "Logic Circuit Gen",
@@ -88,11 +92,14 @@ const TRANSLATIONS = {
     viewSource: "Source Code",
     appearance: "Style",
     smartGen: "Auto Gen",
-    // optimize: "Auto Layout", // Removed
     newChip: "New Chip",
-    export: "Export",
+    export: "Export PNG",
+    saveProject: "Save Project", // New
+    openProject: "Open Project", // New
     clear: "Clear",
     reset: "Reset",
+    undo: "Undo", // New
+    redo: "Redo", // New
     input: "Input",
     output: "Output",
     basicGates: "Basic Gates",
@@ -123,8 +130,8 @@ const TRANSLATIONS = {
     guideTitle: "Quick Start Guide",
     guideStep1: "1. Auto Gen: Input boolean formulas to generate.",
     guideStep2: "2. Simulation: Click ▶ to start. Click Inputs to toggle voltage.",
-    guideStep3: "3. Smart Snap: Drag gates to see alignment guides for easy layout.", // Updated
-    guideStep4: "4. Custom Names: Double-click text on Inputs/Outputs to rename.",
+    guideStep3: "3. Smart Snap: Drag gates to see alignment guides for easy layout.",
+    guideStep4: "4. Undo/Save: Use Undo at bottom to fix mistakes, or Save to file.", // Updated
     moreInfo: "Visit author's homepage for detailed docs. Email: budo0422@outlook.com",
     startUsing: "Start Designing",
     language: "中文",
@@ -144,21 +151,20 @@ const TRANSLATIONS = {
     simStop: "Stop Sim",
     simRunning: "Simulating...",
     snapEnabled: "Snap Enabled",
+    fileLoadError: "Invalid file format.", // New
+    confirmClear: "Clear canvas? You can undo this.", // New
   }
 };
 
 // --- 基础配置 ---
 const GRID_SIZE = 20;
-// Color Definitions
-const WIRE_COLOR_NEUTRAL = "#334155"; // Slate-700
-const WIRE_COLOR_LOW = "#ef4444";     // Red-500
-const WIRE_COLOR_HIGH = "#22c55e";    // Green-500
-
+const WIRE_COLOR_NEUTRAL = "#334155";
+const WIRE_COLOR_LOW = "#ef4444";
+const WIRE_COLOR_HIGH = "#22c55e";
 const WIRE_WIDTH = 2;
 const GATE_STROKE_WIDTH = 2;
-const INPUT_ROW_HEIGHT = 90;
 
-// --- 静态资源定义 ---
+// --- 静态资源定义 (保持不变) ---
 const SHAPES = {
   AND: <path d="M 10 5 L 10 55 L 35 55 A 25 25 0 0 0 35 5 L 10 5 Z" fill="white" stroke="currentColor" strokeWidth={GATE_STROKE_WIDTH} />,
   OR: <path d="M 10 5 C 10 5 22 18 22 30 C 22 42 10 55 10 55 C 40 55 60 42 60 30 C 60 18 40 5 10 5 Z" fill="white" stroke="currentColor" strokeWidth={GATE_STROKE_WIDTH} />,
@@ -178,7 +184,7 @@ const SHAPES = {
 
 const GATE_PATHS = { ...SHAPES, INPUT: SHAPES.INPUT_STD, OUTPUT: SHAPES.OUTPUT_STD };
 
-// Hardcoded IC SVGs
+// IC SVGs
 const IC_SVGS = {
   IC_74LS138: <g>
     <rect x="0" y="0" width="100" height="260" rx="4" fill="white" stroke="currentColor" strokeWidth={2} />
@@ -227,7 +233,6 @@ const IC_SVGS = {
   </g>
 };
 
-// Static Config
 const PORT_CONFIG = {
   AND: { inputs: [{ x: 10, y: 15 }, { x: 10, y: 45 }], outputs: [{ x: 60, y: 30 }] },
   OR: { inputs: [{ x: 12, y: 15 }, { x: 12, y: 45 }], outputs: [{ x: 60, y: 30 }] },
@@ -241,7 +246,6 @@ const PORT_CONFIG = {
   GND: { inputs: [{ x: 20, y: 0 }], outputs: [{ x: 20, y: 0 }] },
   INPUT: { inputs: [], outputs: [{ x: 40, y: 30 }] },
   OUTPUT: { inputs: [{ x: 5, y: 30 }], outputs: [] },
-
   IC_74LS138: {
     inputs: [ { x: 0, y: 55 }, { x: 0, y: 75 }, { x: 0, y: 95 }, { x: 0, y: 125 }, { x: 0, y: 145 }, { x: 0, y: 165 } ],
     outputs: [ { x: 100, y: 85 }, { x: 100, y: 105 }, { x: 100, y: 125 }, { x: 100, y: 145 }, { x: 100, y: 165 }, { x: 100, y: 185 }, { x: 100, y: 205 }, { x: 100, y: 225 } ]
@@ -254,13 +258,9 @@ const PORT_CONFIG = {
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
-// --- 路由算法 (回归简单) ---
-// 由于取消了自动布局通道，我们使用简单的 Manhattan 路由
-// 如果需要避让，依靠用户手动布局
 const getManhattanPath = (x1, y1, x2, y2) => {
   const midX = (x1 + x2) / 2;
   if (x2 < x1 + 20) {
-      // 回环或过近
       const loopH = 60;
       const loopW = 40;
       return `M ${x1} ${y1} L ${x1 + loopW} ${y1} L ${x1 + loopW} ${y1 + loopH} L ${x2 - loopW} ${y1 + loopH} L ${x2 - loopW} ${y2} L ${x2} ${y2}`;
@@ -268,6 +268,7 @@ const getManhattanPath = (x1, y1, x2, y2) => {
   return `M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`;
 };
 
+// --- Expression Parser Classes (保持不变) ---
 const tokenize = (expr) => expr.replace(/\(/g, ' ( ').replace(/\)/g, ' ) ').replace(/,/g, ' , ').replace(/=/g, ' = ').toUpperCase().trim().split(/\s+/);
 class ExpressionParser {
   constructor(tokens) { this.tokens = tokens; this.pos = 0; }
@@ -377,7 +378,7 @@ class LogicSynthesizer {
   }
 }
 
-// --- Simulation Logic Helper ---
+// --- Simulation Logic Helper (保持不变) ---
 const simulateCircuit = (elements, wires, initialStates) => {
   let currentState = { ...initialStates };
   let unstable = true;
@@ -389,41 +390,28 @@ const simulateCircuit = (elements, wires, initialStates) => {
       if (!wire) return 0;
       const sourceId = wire.from;
       const sourceIndex = wire.fromIndex || 0;
-
       const specificKey = `${sourceId}_${sourceIndex}`;
       if (currentState[specificKey] !== undefined) return currentState[specificKey];
-
       if (sourceIndex === 0 && currentState[sourceId] !== undefined) return currentState[sourceId];
-
       return 0;
   };
 
   while (unstable && iterations < MAX_ITERATIONS) {
       unstable = false;
       const nextState = { ...currentState };
-
       elements.forEach(el => {
           let newVal = 0;
           let outputs = {};
-
-          if (el.type === 'VCC') {
-              newVal = 1;
-          } else if (el.type === 'GND') {
-              newVal = 0;
-          } else if (el.type === 'INPUT') {
-              newVal = currentState[el.id] || 0;
-          } else if (el.type === 'OUTPUT') {
-              newVal = getInputValue(el.id, 0);
-          } else {
+          if (el.type === 'VCC') { newVal = 1; }
+          else if (el.type === 'GND') { newVal = 0; }
+          else if (el.type === 'INPUT') { newVal = currentState[el.id] || 0; }
+          else if (el.type === 'OUTPUT') { newVal = getInputValue(el.id, 0); }
+          else {
               const config = PORT_CONFIG[el.type];
               let inputCount = 2;
-              if (config) {
-                 inputCount = config.inputs.length;
-              }
-
+              if (config) { inputCount = config.inputs.length; }
               const inputs = [];
               for(let i=0; i<inputCount; i++) inputs.push(getInputValue(el.id, i));
-
               switch(el.type) {
                   case 'AND': newVal = inputs.every(v => v) ? 1 : 0; break;
                   case 'OR': newVal = inputs.some(v => v) ? 1 : 0; break;
@@ -433,51 +421,37 @@ const simulateCircuit = (elements, wires, initialStates) => {
                   case 'XOR': newVal = (inputs[0] !== inputs[1]) ? 1 : 0; break;
                   case 'XNOR': newVal = (inputs[0] === inputs[1]) ? 1 : 0; break;
                   case 'NAND4': newVal = inputs.every(v => v) ? 0 : 1; break;
-
                   case 'IC_74LS138':
                       if(inputs.length >= 6) {
                         const [A, B, C, G1, G2A, G2B] = inputs;
                         const enable = G1 && !G2A && !G2B;
                         const select = (C << 2) | (B << 1) | A;
-                        for(let i=0; i<8; i++) {
-                            outputs[i] = (enable && select === i) ? 0 : 1;
-                        }
+                        for(let i=0; i<8; i++) { outputs[i] = (enable && select === i) ? 0 : 1; }
                       }
                       break;
-
                   case 'IC_74LS153':
                       if(inputs.length >= 12) {
                         const sel = (inputs[1] << 1) | inputs[0];
                         const en1 = inputs[2];
                         const val1 = inputs[3 + sel];
                         outputs[0] = (!en1 && val1) ? 1 : 0;
-
                         const en2 = inputs[7];
                         const val2 = inputs[8 + sel];
                         outputs[1] = (!en2 && val2) ? 1 : 0;
                       }
                       break;
-
                   default: newVal = 0;
               }
           }
-
           if (Object.keys(outputs).length > 0) {
               Object.keys(outputs).forEach(idx => {
                   const key = `${el.id}_${idx}`;
-                  if (nextState[key] !== outputs[idx]) {
-                      nextState[key] = outputs[idx];
-                      unstable = true;
-                  }
+                  if (nextState[key] !== outputs[idx]) { nextState[key] = outputs[idx]; unstable = true; }
               });
           } else {
-              if (nextState[el.id] !== newVal) {
-                  nextState[el.id] = newVal;
-                  unstable = true;
-              }
+              if (nextState[el.id] !== newVal) { nextState[el.id] = newVal; unstable = true; }
           }
       });
-
       currentState = nextState;
       iterations++;
   }
@@ -489,6 +463,7 @@ export default function LogicCircuitDesigner() {
   const [elements, setElements] = useState([]);
   const [wires, setWires] = useState([]);
   const [draggingId, setDraggingId] = useState(null);
+  const [dragStartPos, setDragStartPos] = useState(null); // New: Track drag start for Undo
   const [connecting, setConnecting] = useState(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [showGenerator, setShowGenerator] = useState(false);
@@ -505,47 +480,115 @@ export default function LogicCircuitDesigner() {
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [expression, setExpression] = useState("F = OR(AND(OR(A, NOT(B)), C), AND(OR(NOT(A), B), NOT(C)))");
   const svgRef = useRef(null);
+  const fileInputRef = useRef(null); // New: File Input Ref
   const [generateError, setGenerateError] = useState(null);
   const [allowedGates, setAllowedGates] = useState({ AND: true, OR: true, NOT: true, NAND: true, NAND4: true, NOR: true, XOR: true, XNOR: true });
   const [appearance, setAppearance] = useState({ simpleIO: false });
   const [lang, setLang] = useState('zh');
   const [customChips, setCustomChips] = useState([]);
 
-  // --- New State for Alignment Guides ---
-  const [alignmentGuides, setAlignmentGuides] = useState([]); // Array of { type: 'x'|'y', pos: number }
+  // --- History State (Undo/Redo) ---
+  const [history, setHistory] = useState([{ elements: [], wires: [] }]);
+  const [historyStep, setHistoryStep] = useState(0);
 
-  // --- New State for Renaming ---
+  const [alignmentGuides, setAlignmentGuides] = useState([]);
   const [editingNodeId, setEditingNodeId] = useState(null);
   const [editingLabel, setEditingLabel] = useState("");
-
-  // --- Simulation State ---
   const [simulationRunning, setSimulationRunning] = useState(false);
   const [nodeStates, setNodeStates] = useState({});
-
-  // Wizard State
   const [wizardData, setWizardData] = useState({ name: '', width: 100, inputStr: '', outputStr: '' });
 
   const t = TRANSLATIONS[lang];
 
-  useEffect(() => {
-    if (showManual) {
-        setManualLang(lang);
-    }
-  }, [showManual, lang]);
-
+  useEffect(() => { if (showManual) setManualLang(lang); }, [showManual, lang]);
   useEffect(() => {
     const saved = localStorage.getItem('customChips');
-    if (saved) {
-        try { setCustomChips(JSON.parse(saved)); } catch (e) { console.error(e); }
-    }
+    if (saved) { try { setCustomChips(JSON.parse(saved)); } catch (e) { console.error(e); } }
   }, []);
-
   useEffect(() => {
     if (simulationRunning) {
         const finalState = simulateCircuit(elements, wires, nodeStates);
         setNodeStates(finalState);
     }
   }, [wires, elements, simulationRunning]);
+
+  // --- History Management Functions ---
+  const recordHistory = useCallback((newElements, newWires) => {
+    const newHistory = history.slice(0, historyStep + 1);
+    newHistory.push({ elements: newElements, wires: newWires });
+    if (newHistory.length > 50) newHistory.shift(); // Limit history size
+    setHistory(newHistory);
+    setHistoryStep(newHistory.length - 1);
+  }, [history, historyStep]);
+
+  const handleUndo = () => {
+    if (historyStep > 0) {
+      const prevStep = historyStep - 1;
+      const prevState = history[prevStep];
+      setElements(prevState.elements);
+      setWires(prevState.wires);
+      setHistoryStep(prevStep);
+      setSimulationRunning(false); // Stop sim on undo to prevent glitches
+    }
+  };
+
+  const handleRedo = () => {
+    if (historyStep < history.length - 1) {
+      const nextStep = historyStep + 1;
+      const nextState = history[nextStep];
+      setElements(nextState.elements);
+      setWires(nextState.wires);
+      setHistoryStep(nextStep);
+      setSimulationRunning(false);
+    }
+  };
+
+  // --- Save / Load Project Functions ---
+  const handleSaveProject = () => {
+    const projectData = {
+      version: "7.7.0",
+      timestamp: Date.now(),
+      elements,
+      wires,
+      customChips,
+      view
+    };
+    const blob = new Blob([JSON.stringify(projectData, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `logic_circuit_${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleLoadProject = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = JSON.parse(event.target.result);
+        if (data.elements && data.wires) {
+          setElements(data.elements);
+          setWires(data.wires);
+          if (data.customChips) setCustomChips(data.customChips);
+          if (data.view) setView(data.view);
+
+          // Reset history for the new project
+          setHistory([{ elements: data.elements, wires: data.wires }]);
+          setHistoryStep(0);
+          setSimulationRunning(false);
+        } else {
+          alert(t.fileLoadError);
+        }
+      } catch (err) {
+        alert(t.fileLoadError);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = null; // Reset input
+  };
 
   const toggleSimulation = () => {
       const newState = !simulationRunning;
@@ -559,9 +602,7 @@ export default function LogicCircuitDesigner() {
           });
           const finalState = simulateCircuit(elements, wires, initial);
           setNodeStates(finalState);
-      } else {
-          setNodeStates({});
-      }
+      } else { setNodeStates({}); }
   };
 
   const handleInputToggle = (e, id) => {
@@ -580,7 +621,6 @@ export default function LogicCircuitDesigner() {
       const outputs = wizardData.outputStr.split(',').map(s => s.trim()).filter(s => s);
       if (!wizardData.name) return alert("请输入芯片名称");
       if (inputs.length === 0 && outputs.length === 0) return alert("请至少定义一个引脚");
-
       const newChip = {
           id: `CUSTOM_${Date.now()}`,
           name: wizardData.name,
@@ -589,7 +629,6 @@ export default function LogicCircuitDesigner() {
           outputs,
           height: 50 + Math.max(inputs.length, outputs.length) * 20
       };
-
       const updated = [...customChips, newChip];
       setCustomChips(updated);
       localStorage.setItem('customChips', JSON.stringify(updated));
@@ -600,7 +639,6 @@ export default function LogicCircuitDesigner() {
   const getPortPos = (elementId, portType, index) => {
     const el = elements.find(e => e.id === elementId);
     if (!el) return { x: 0, y: 0 };
-
     if (PORT_CONFIG[el.type]) {
         const config = PORT_CONFIG[el.type];
         if (portType === 'input') {
@@ -612,30 +650,20 @@ export default function LogicCircuitDesigner() {
             return { x: el.x + relPos.x, y: el.y + relPos.y };
         }
     }
-
     if (el.type.startsWith('CUSTOM_')) {
         const chipDef = customChips.find(c => c.id === el.type);
         if (!chipDef) return { x: el.x, y: el.y };
-
-        if (portType === 'input') {
-            return { x: el.x, y: el.y + 45 + (index * 20) };
-        } else {
-            return { x: el.x + chipDef.width, y: el.y + 45 + ((index || 0) * 20) };
-        }
+        if (portType === 'input') { return { x: el.x, y: el.y + 45 + (index * 20) }; }
+        else { return { x: el.x + chipDef.width, y: el.y + 45 + ((index || 0) * 20) }; }
     }
-
     return { x: el.x, y: el.y };
   };
 
   const renderGate = (el) => {
     const isHigh = nodeStates[el.id] === 1;
-
     const getICPinColor = (pinIndex) => {
         if (!simulationRunning) return "currentColor";
-        const val = nodeStates[`${el.id}_${pinIndex}`] !== undefined
-                    ? nodeStates[`${el.id}_${pinIndex}`]
-                    : (pinIndex === 0 ? nodeStates[el.id] : undefined);
-
+        const val = nodeStates[`${el.id}_${pinIndex}`] !== undefined ? nodeStates[`${el.id}_${pinIndex}`] : (pinIndex === 0 ? nodeStates[el.id] : undefined);
         if (val === 1) return WIRE_COLOR_HIGH;
         if (val === 0) return WIRE_COLOR_LOW;
         return "currentColor";
@@ -643,33 +671,24 @@ export default function LogicCircuitDesigner() {
 
     if (el.type === 'INPUT') {
         const base = appearance.simpleIO ? GATE_PATHS.INPUT_SIMPLE : GATE_PATHS.INPUT_STD;
-        const colorClass = simulationRunning
-            ? (isHigh ? "text-green-500" : "text-red-500")
-            : "text-slate-900";
+        const colorClass = simulationRunning ? (isHigh ? "text-green-500" : "text-red-500") : "text-slate-900";
         return (
             <g className={simulationRunning ? "cursor-pointer" : ""}>
                 <g className={colorClass}>{base}</g>
-                {simulationRunning && (
-                    <circle cx="20" cy="30" r="10" fill={isHigh ? "#22c55e" : "#ef4444"} fillOpacity="0.3" stroke="none" className="animate-pulse"/>
-                )}
+                {simulationRunning && (<circle cx="20" cy="30" r="10" fill={isHigh ? "#22c55e" : "#ef4444"} fillOpacity="0.3" stroke="none" className="animate-pulse"/>)}
             </g>
         );
     }
     if (el.type === 'OUTPUT') {
         const base = appearance.simpleIO ? GATE_PATHS.OUTPUT_SIMPLE : GATE_PATHS.OUTPUT_STD;
-        const colorClass = simulationRunning
-            ? (isHigh ? "text-green-500" : "text-red-500")
-            : "text-slate-900";
+        const colorClass = simulationRunning ? (isHigh ? "text-green-500" : "text-red-500") : "text-slate-900";
         return (
             <g>
                 <g className={colorClass}>{base}</g>
-                {simulationRunning && (
-                    <circle cx="20" cy="30" r="12" fill={isHigh ? "#22c55e" : "#ef4444"} fillOpacity="0.4" stroke={isHigh ? "#22c55e" : "#ef4444"} className="transition-colors duration-200"/>
-                )}
+                {simulationRunning && (<circle cx="20" cy="30" r="12" fill={isHigh ? "#22c55e" : "#ef4444"} fillOpacity="0.4" stroke={isHigh ? "#22c55e" : "#ef4444"} className="transition-colors duration-200"/>)}
             </g>
         );
     }
-
     if (el.type === 'IC_74LS138') {
         return (
             <g>
@@ -696,7 +715,6 @@ export default function LogicCircuitDesigner() {
             </g>
         );
     }
-
     if (el.type === 'IC_74LS153') {
         const c1Y = getICPinColor(0);
         const c2Y = getICPinColor(1);
@@ -714,9 +732,7 @@ export default function LogicCircuitDesigner() {
                 <text x="8" y="165" fontSize="11" fill="#64748b" dominantBaseline="middle">1C2</text>
                 <text x="8" y="185" fontSize="11" fill="#64748b" dominantBaseline="middle">1C3</text>
                 <text x="92" y="145" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle">1Y</text>
-                <circle cx="96" cy="145" r="0" />
                 <circle cx="96" cy="145" r="3" fill={simulationRunning ? c1Y : "white"} stroke={c1Y === "currentColor" ? "currentColor" : c1Y} strokeWidth={1.5} />
-
                 <line x1="5" y1="195" x2="95" y2="195" stroke="#e2e8f0" strokeDasharray="3 3"/>
                 <text x="12" y="215" fontSize="11" fill="#64748b" dominantBaseline="middle">2G</text>
                 <circle cx="5" cy="215" r="3" fill="white" stroke="#64748b" strokeWidth="1.5"/>
@@ -729,13 +745,10 @@ export default function LogicCircuitDesigner() {
             </g>
         );
     }
-
     if (GATE_PATHS[el.type]) return GATE_PATHS[el.type];
-
     if (el.type.startsWith('CUSTOM_')) {
         const chip = customChips.find(c => c.id === el.type);
         if (!chip) return <rect width="50" height="50" fill="red" />;
-
         return (
             <g>
                 <rect x="0" y="0" width={chip.width} height={chip.height} rx="4" fill="white" stroke="currentColor" strokeWidth={2} />
@@ -798,14 +811,11 @@ export default function LogicCircuitDesigner() {
 
       elements.forEach(other => {
           if (other.id === draggingId) return;
-
-          // Check X alignment
           if (Math.abs(other.x - snappedX) < SNAP_THRESHOLD) {
               snappedX = other.x;
               isXSnapped = true;
               newGuides.push({ type: 'x', pos: other.x });
           }
-          // Check Y alignment
           if (Math.abs(other.y - snappedY) < SNAP_THRESHOLD) {
               snappedY = other.y;
               isYSnapped = true;
@@ -820,21 +830,32 @@ export default function LogicCircuitDesigner() {
 
   const handleGlobalMouseUp = () => {
       setIsPanning(false);
+
+      // History Recording for Drag End
+      if (draggingId) {
+        const currentEl = elements.find(e => e.id === draggingId);
+        if (currentEl && dragStartPos && (currentEl.x !== dragStartPos.x || currentEl.y !== dragStartPos.y)) {
+           recordHistory(elements, wires);
+        }
+      }
+
       setDraggingId(null);
-      setAlignmentGuides([]); // Clear guides on drop
+      setDragStartPos(null);
+      setAlignmentGuides([]);
   };
 
   const handleMouseDown = (e, id, type) => {
     if (simulationRunning) {
-        if (type === 'INPUT') {
-            handleInputToggle(e, id);
-        }
+        if (type === 'INPUT') { handleInputToggle(e, id); }
         return;
     }
-
     if (connecting) { setConnecting(null); return; }
-    if (id) { e.stopPropagation(); setDraggingId(id); }
-    else { startPan(e); }
+    if (id) {
+        e.stopPropagation();
+        setDraggingId(id);
+        const el = elements.find(e => e.id === id);
+        if (el) setDragStartPos({ x: el.x, y: el.y });
+    } else { startPan(e); }
   };
 
   const addElement = (type, x, y, label = "") => {
@@ -843,8 +864,8 @@ export default function LogicCircuitDesigner() {
     if (!label) {
       if (type.startsWith('IC_') || type.startsWith('CUSTOM_') || type === 'VCC' || type === 'GND') { finalLabel = ''; }
       else {
-         const count = elements.filter(e => e.type === type).length;
-         finalLabel = type === 'INPUT' ? String.fromCharCode(65 + count) : (type === 'OUTPUT' ? 'Y' : '');
+          const count = elements.filter(e => e.type === type).length;
+          finalLabel = type === 'INPUT' ? String.fromCharCode(65 + count) : (type === 'OUTPUT' ? 'Y' : '');
       }
     }
     let finalX = x;
@@ -853,8 +874,12 @@ export default function LogicCircuitDesigner() {
        finalX = (-view.x + 200) / view.k;
        finalY = (-view.y + 200) / view.k;
     }
-    setElements(prev => [...prev, { id, type, x: Math.max(50, finalX), y: Math.max(50, finalY), label: finalLabel }]);
+    const newEl = { id, type, x: Math.max(50, finalX), y: Math.max(50, finalY), label: finalLabel };
+    const newElements = [...elements, newEl];
+    setElements(newElements);
+    recordHistory(newElements, wires); // Record history on add
   };
+
   const handleDragStart = (e, type) => { e.dataTransfer.setData('gateType', type); };
   const handleDrop = (e) => {
     e.preventDefault();
@@ -869,9 +894,20 @@ export default function LogicCircuitDesigner() {
   const updateElementPos = (id, x, y) => { setElements(els => els.map(el => el.id === id ? { ...el, x, y } : el)); };
   const deleteElement = (id) => {
       if(simulationRunning) return;
-      setElements(els => els.filter(e => e.id !== id)); setWires(ws => ws.filter(w => w.from !== id && w.to !== id));
+      const newElements = elements.filter(e => e.id !== id);
+      const newWires = wires.filter(w => w.from !== id && w.to !== id);
+      setElements(newElements);
+      setWires(newWires);
+      recordHistory(newElements, newWires); // Record history on delete
   };
-  const clearCanvas = () => { if(simulationRunning) return; setElements([]); setWires([]); };
+  const clearCanvas = () => {
+      if(simulationRunning) return;
+      if(elements.length > 0 && window.confirm(t.confirmClear)) {
+         setElements([]);
+         setWires([]);
+         recordHistory([], []); // Record history on clear
+      }
+  };
 
   const handleExport = () => {
     if (!svgRef.current) return;
@@ -882,10 +918,10 @@ export default function LogicCircuitDesigner() {
     if (gContent) gContent.setAttribute("transform", "");
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     elements.forEach(el => {
-       if (el.x < minX) minX = el.x;
-       if (el.y < minY) minY = el.y;
-       if (el.x > maxX) maxX = el.x;
-       if (el.y > maxY) maxY = el.y;
+        if (el.x < minX) minX = el.x;
+        if (el.y < minY) minY = el.y;
+        if (el.x > maxX) maxX = el.x;
+        if (el.y > maxY) maxY = el.y;
     });
     const padding = 100;
     const width = (maxX - minX) + padding * 2 || 800;
@@ -930,7 +966,6 @@ export default function LogicCircuitDesigner() {
   const handleGeneratePrompt = () => {
     const selectedGates = Object.keys(allowedGates).filter(k => allowedGates[k]).join(', ');
     let finalPrompt = "";
-
     if (lang === 'zh') {
       finalPrompt = `
 你是一个逻辑电路合成助手。
@@ -954,7 +989,6 @@ Rules:
 5. NO Markdown code blocks, NO explanations. Just the equations.
 User Input: "${expression}"`.trim();
     }
-
     setAiPrompt(finalPrompt);
     setShowPromptModal(true);
   };
@@ -963,19 +997,18 @@ User Input: "${expression}"`.trim();
   const handleNodeDoubleClick = (e, id, currentLabel) => {
       e.stopPropagation();
       e.preventDefault();
-      // Allow renaming even in simulation mode for better UX, or strictly check
       setEditingNodeId(id);
       setEditingLabel(currentLabel || "");
   };
 
   const saveLabelChange = () => {
       if (editingNodeId) {
-          setElements(prev => prev.map(el => el.id === editingNodeId ? { ...el, label: editingLabel } : el));
+          const newElements = elements.map(el => el.id === editingNodeId ? { ...el, label: editingLabel } : el);
+          setElements(newElements);
+          recordHistory(newElements, wires); // Record history on rename
           setEditingNodeId(null);
       }
   };
-
-  // 移除 handleAutoLayout
 
   const generateFromExpression = () => {
     setGenerateError(null);
@@ -1041,7 +1074,6 @@ User Input: "${expression}"`.trim();
         nodes.push(outNode);
         wiresData.push({ from: outNode.inputNode.id, to: outNode.id, toIndex: 0 });
       });
-      // 简单初始排列，不尝试做复杂布局
       const finalElements = nodes.map((n, idx) => ({ id: n.id, type: n.type, x: 50 + n.level * 200, y: 50 + idx * 100, label: n.label }));
       const finalWires = wiresData.map(w => ({
         id: generateId(),
@@ -1049,6 +1081,7 @@ User Input: "${expression}"`.trim();
       }));
       setElements(finalElements);
       setWires(finalWires);
+      recordHistory(finalElements, finalWires); // Record history on gen
       setShowGenerator(false);
     } catch (e) {
       setGenerateError(e.message);
@@ -1072,7 +1105,9 @@ User Input: "${expression}"`.trim();
           setConnecting(null);
           return;
       }
-      setWires([...wires, { id: generateId(), from: source.elementId, fromIndex: source.portIndex, to: target.elementId, toIndex: target.portIndex }]);
+      const newWires = [...wires, { id: generateId(), from: source.elementId, fromIndex: source.portIndex, to: target.elementId, toIndex: target.portIndex }];
+      setWires(newWires);
+      recordHistory(elements, newWires); // Record history on new wire
       setConnecting(null);
     } else {
         setConnecting({ elementId, portType: type, portIndex: index });
@@ -1081,9 +1116,12 @@ User Input: "${expression}"`.trim();
 
   return (
     <>
+    {/* Hidden File Input for Loading */}
+    <input type="file" accept=".json" ref={fileInputRef} className="hidden" onChange={handleLoadProject} />
+
     <div className="flex flex-col h-screen bg-slate-50 text-slate-900 font-sans selection:bg-indigo-100 selection:text-indigo-700" onMouseMove={handleGlobalMouseMove} onMouseUp={handleGlobalMouseUp} onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}>
       <div className="h-16 bg-white/90 backdrop-blur-md border-b border-slate-200 px-6 flex items-center justify-between z-20 shadow-sm relative">
-        <div className="flex items-center gap-4"><div className="bg-gradient-to-br from-indigo-600 to-violet-600 p-2.5 rounded-xl shadow-lg shadow-indigo-200"><Layout className="text-white w-5 h-5" strokeWidth={2.5} /></div><div><h1 className="text-xl font-bold tracking-tight text-slate-900">LogicCircuit <span className="text-indigo-600">Gen</span></h1><div className="flex items-center gap-2 text-xs font-medium text-slate-500 mt-0.5"><span>v7.6.0</span><span className="w-1 h-1 bg-slate-300 rounded-full"></span><span className="flex items-center gap-1">{t.by} <a href="https://github.com/budoyh" target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline font-medium">不懂</a></span><a href="https://github.com/budoyh/logic-circuit-designer" target="_blank" rel="noreferrer" className="text-slate-400 hover:text-slate-900 transition-colors ml-1" title={t.viewSource}><Github size={14} /></a></div></div></div>
+        <div className="flex items-center gap-4"><div className="bg-gradient-to-br from-indigo-600 to-violet-600 p-2.5 rounded-xl shadow-lg shadow-indigo-200"><Layout className="text-white w-5 h-5" strokeWidth={2.5} /></div><div><h1 className="text-xl font-bold tracking-tight text-slate-900">LogicCircuit <span className="text-indigo-600">Gen</span></h1><div className="flex items-center gap-2 text-xs font-medium text-slate-500 mt-0.5"><span>v7.7.0</span><span className="w-1 h-1 bg-slate-300 rounded-full"></span><span className="flex items-center gap-1">{t.by} <a href="https://github.com/budoyh" target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline font-medium">不懂</a></span><a href="https://github.com/budoyh/logic-circuit-designer" target="_blank" rel="noreferrer" className="text-slate-400 hover:text-slate-900 transition-colors ml-1" title={t.viewSource}><Github size={14} /></a></div></div></div>
         <div className="flex items-center gap-3">
            {/* Simulation Control */}
            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 mr-2">
@@ -1097,6 +1135,14 @@ User Input: "${expression}"`.trim();
                 </button>
            </div>
 
+           {/* Save & Load Buttons */}
+           <div className="flex items-center gap-1">
+                <button onClick={handleSaveProject} className="flex items-center gap-2 px-3 py-2 rounded-lg transition-all border text-sm font-medium bg-white text-slate-600 border-slate-200 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-600" title={t.saveProject}><Save size={16} /><span className="hidden sm:inline">{t.saveProject}</span></button>
+                <button onClick={() => fileInputRef.current.click()} className="flex items-center gap-2 px-3 py-2 rounded-lg transition-all border text-sm font-medium bg-white text-slate-600 border-slate-200 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-600" title={t.openProject}><FolderOpen size={16} /><span className="hidden sm:inline">{t.openProject}</span></button>
+           </div>
+
+           <div className="h-6 w-px bg-slate-200 mx-1"></div>
+
            <button onClick={() => setShowChipWizard(true)} className="flex items-center gap-2 px-3 py-2 rounded-lg transition-all border text-sm font-medium bg-white text-slate-600 border-slate-200 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-600"><PlusSquare size={16} /><span>{t.newChip}</span></button>
 
            <button onClick={() => setLang(l => l === 'zh' ? 'en' : 'zh')} className="flex items-center gap-2 px-3 py-2 rounded-lg transition-all border text-sm font-medium bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300"><Globe size={16} /><span>{t.language}</span></button>
@@ -1106,8 +1152,6 @@ User Input: "${expression}"`.trim();
            <button onClick={() => setShowManual(true)} className="flex items-center gap-2 px-3 py-2 rounded-lg transition-all border text-sm font-medium bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300"><BookOpen size={16} /><span>{t.manual}</span></button>
 
            <button onClick={() => setShowGenerator(true)} className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-lg font-medium shadow-md shadow-indigo-200 hover:shadow-lg hover:shadow-indigo-300 hover:-translate-y-0.5 transition-all active:translate-y-0 active:shadow-none"><Wand2 size={16} /><span>{t.smartGen}</span></button>
-
-           {/* Removed Auto Layout Button */}
 
            <button onClick={() => setShowWelcome(true)} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"><HelpCircle size={20} /></button>
         </div>
@@ -1121,8 +1165,8 @@ User Input: "${expression}"`.trim();
                 <div className="flex items-center gap-4">
                   <h3 className="font-bold text-slate-800 flex items-center gap-2"><BookOpen size={18} className="text-indigo-500"/> {t.manualTitle}</h3>
                   <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200">
-                     <button onClick={() => setManualTab('pdf')} className={`flex items-center gap-2 px-3 py-1 rounded-md text-xs font-bold transition-all ${manualTab === 'pdf' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}><FileTextIcon size={14}/> {t.tabPdf}</button>
-                     <button onClick={() => setManualTab('video')} className={`flex items-center gap-2 px-3 py-1 rounded-md text-xs font-bold transition-all ${manualTab === 'video' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}><Video size={14}/> {t.tabVideo}</button>
+                      <button onClick={() => setManualTab('pdf')} className={`flex items-center gap-2 px-3 py-1 rounded-md text-xs font-bold transition-all ${manualTab === 'pdf' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}><FileTextIcon size={14}/> {t.tabPdf}</button>
+                      <button onClick={() => setManualTab('video')} className={`flex items-center gap-2 px-3 py-1 rounded-md text-xs font-bold transition-all ${manualTab === 'video' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}><Video size={14}/> {t.tabVideo}</button>
                   </div>
                 </div>
                 <button onClick={() => setShowManual(false)} className="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-200 rounded-full transition-colors"><X size={20} /></button>
@@ -1158,20 +1202,20 @@ User Input: "${expression}"`.trim();
               <div className="flex justify-between items-center p-5 border-b border-slate-100"><h3 className="font-bold text-slate-800 flex items-center gap-2"><Cpu size={18} className="text-indigo-500"/> {t.chipWizardTitle}</h3><button onClick={() => setShowChipWizard(false)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button></div>
               <div className="p-6 space-y-4 bg-slate-50/50">
                 <div>
-                   <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider">{t.chipName}</label>
-                   <input type="text" value={wizardData.name} onChange={e => setWizardData({...wizardData, name: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="e.g. 74LS00" />
+                    <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider">{t.chipName}</label>
+                    <input type="text" value={wizardData.name} onChange={e => setWizardData({...wizardData, name: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="e.g. 74LS00" />
                 </div>
                 <div>
-                   <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider">{t.chipWidth} (px)</label>
-                   <input type="number" value={wizardData.width} onChange={e => setWizardData({...wizardData, width: parseInt(e.target.value) || 100})} className="w-full p-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" />
+                    <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider">{t.chipWidth} (px)</label>
+                    <input type="number" value={wizardData.width} onChange={e => setWizardData({...wizardData, width: parseInt(e.target.value) || 100})} className="w-full p-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" />
                 </div>
                 <div>
-                   <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider">{t.leftPins}</label>
-                   <textarea value={wizardData.inputStr} onChange={e => setWizardData({...wizardData, inputStr: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm h-20 resize-none" placeholder={t.pinsPlaceholder} />
+                    <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider">{t.leftPins}</label>
+                    <textarea value={wizardData.inputStr} onChange={e => setWizardData({...wizardData, inputStr: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm h-20 resize-none" placeholder={t.pinsPlaceholder} />
                 </div>
                 <div>
-                   <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider">{t.rightPins}</label>
-                   <textarea value={wizardData.outputStr} onChange={e => setWizardData({...wizardData, outputStr: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm h-20 resize-none" placeholder={t.pinsPlaceholder} />
+                    <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider">{t.rightPins}</label>
+                    <textarea value={wizardData.outputStr} onChange={e => setWizardData({...wizardData, outputStr: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm h-20 resize-none" placeholder={t.pinsPlaceholder} />
                 </div>
               </div>
               <div className="p-5 border-t border-slate-100 bg-white flex justify-end gap-3">
@@ -1279,17 +1323,13 @@ User Input: "${expression}"`.trim();
               {wires.map((wire, idx) => {
                 const startPos = getPortPos(wire.from, 'output', wire.fromIndex);
                 const endPos = getPortPos(wire.to, 'input', wire.toIndex);
-                // Determine wire color based on simulation state
-                let color = WIRE_COLOR_NEUTRAL; // Default Slate
+                let color = WIRE_COLOR_NEUTRAL;
                 if (simulationRunning) {
                     const fromId = wire.from;
                     const fromIndex = wire.fromIndex || 0;
-                    const val = nodeStates[`${fromId}_${fromIndex}`] !== undefined
-                                ? nodeStates[`${fromId}_${fromIndex}`]
-                                : (fromIndex === 0 ? nodeStates[fromId] : 0);
+                    const val = nodeStates[`${fromId}_${fromIndex}`] !== undefined ? nodeStates[`${fromId}_${fromIndex}`] : (fromIndex === 0 ? nodeStates[fromId] : 0);
                     color = (val === 1) ? WIRE_COLOR_HIGH : WIRE_COLOR_LOW;
                 }
-
                 return (
                   <g key={wire.id}>
                     <path d={getManhattanPath(startPos.x, startPos.y, endPos.x, endPos.y)} stroke={color} strokeWidth={WIRE_WIDTH} fill="none" className="drop-shadow-sm transition-colors duration-200" />
@@ -1309,9 +1349,7 @@ User Input: "${expression}"`.trim();
 
                   {el.type === 'INPUT' && (
                     <g onDoubleClick={(e) => handleNodeDoubleClick(e, el.id, el.label)} className="cursor-text pointer-events-auto">
-                        {/* 扩大点击区域，使用高z-index确保不被遮挡 */}
                         <rect x={appearance.simpleIO ? -60 : -20} y={10} width={80} height={40} fill="transparent" className="pointer-events-auto"/>
-
                         {editingNodeId === el.id ? (
                             <foreignObject x={appearance.simpleIO ? -80 : -55} y={20} width={60} height={30}>
                                 <input
@@ -1333,7 +1371,6 @@ User Input: "${expression}"`.trim();
                   {el.type === 'OUTPUT' && (
                     <g onDoubleClick={(e) => handleNodeDoubleClick(e, el.id, el.label)} className="cursor-text pointer-events-auto">
                         <rect x={appearance.simpleIO ? 20 : 30} y={10} width={80} height={40} fill="transparent" className="pointer-events-auto"/>
-
                         {editingNodeId === el.id ? (
                             <foreignObject x={appearance.simpleIO ? 35 : 45} y={20} width={60} height={30}>
                                 <input
@@ -1361,9 +1398,7 @@ User Input: "${expression}"`.trim();
                     </g>
                   )}
 
-                  {/* Ports - Only interactive when NOT simulating, OR specific cases */}
                   {PORT_CONFIG[el.type] ? (
-                      // Standard Ports
                       <>
                         {PORT_CONFIG[el.type].inputs.map((pos, idx) => (
                           <circle key={`in-${idx}`} cx={pos.x} cy={pos.y} r={5} fill="transparent" stroke="transparent" className={`${simulationRunning ? '' : 'hover:fill-indigo-500 hover:stroke-indigo-200 hover:stroke-4 cursor-crosshair'} transition-all`} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => handlePortClick(e, el.id, 'input', idx)} />
@@ -1372,8 +1407,7 @@ User Input: "${expression}"`.trim();
                           <circle key={`out-${idx}`} cx={pos.x} cy={pos.y} r={5} fill="transparent" stroke="transparent" className={`${simulationRunning ? '' : 'hover:fill-indigo-500 hover:stroke-indigo-200 hover:stroke-4 cursor-crosshair'} transition-all`} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => handlePortClick(e, el.id, 'output', idx)} />
                         ))}
                       </>
-                   ) : (
-                      // Custom Chip Ports
+                    ) : (
                       el.type.startsWith('CUSTOM_') && (() => {
                           const chip = customChips.find(c => c.id === el.type);
                           if(!chip) return null;
@@ -1388,13 +1422,19 @@ User Input: "${expression}"`.trim();
                               </>
                           );
                       })()
-                   )}
+                    )}
                 </g>
               ))}
             </g>
           </svg>
 
           <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-2 p-1.5 bg-white/80 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/40 ring-1 ring-black/5 z-30 transition-transform hover:scale-105 duration-300">
+             {/* Undo/Redo Buttons */}
+             <div className="flex items-center gap-1 px-2 border-r border-slate-200/50">
+                <button onClick={handleUndo} disabled={historyStep <= 0} className={`p-2 rounded-xl transition-colors ${historyStep <= 0 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:text-indigo-600 hover:bg-white'}`} title={t.undo}><Undo size={18} /></button>
+                <button onClick={handleRedo} disabled={historyStep >= history.length - 1} className={`p-2 rounded-xl transition-colors ${historyStep >= history.length - 1 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:text-indigo-600 hover:bg-white'}`} title={t.redo}><Redo size={18} /></button>
+             </div>
+
              <div className="flex items-center gap-1 px-2 border-r border-slate-200/50">
                <button onClick={() => setView(v => ({ ...v, k: Math.max(0.2, v.k - 0.1) }))} className="p-2 hover:bg-white rounded-xl text-slate-500 hover:text-indigo-600 transition-colors"><ZoomOut size={18} /></button>
                <span className="text-xs font-bold text-slate-700 w-12 text-center select-none">{Math.round(view.k * 100)}%</span>
@@ -1403,7 +1443,7 @@ User Input: "${expression}"`.trim();
              <button onClick={() => setView({ x: 0, y: 0, k: 1 })} className="p-2 hover:bg-white rounded-xl text-slate-500 hover:text-indigo-600 transition-colors group relative" title={t.reset}><RotateCcw size={18} /><span className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">{t.reset}</span></button>
              <button onClick={clearCanvas} disabled={simulationRunning} className={`p-2 rounded-xl transition-colors group relative ${simulationRunning ? 'text-slate-300 cursor-not-allowed' : 'hover:bg-red-50 text-slate-500 hover:text-red-500'}`} title={t.clear}><Trash2 size={18} /><span className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">{t.clear}</span></button>
              <div className="w-px h-6 bg-slate-200/50 mx-1"></div>
-             <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-medium transition-colors shadow-lg shadow-slate-200"><Download size={16} /><span>{t.export}</span></button>
+             <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-medium transition-colors shadow-lg shadow-slate-200"><ImageIcon size={16} /><span>{t.export}</span></button>
           </div>
         </div>
       </div>
@@ -1413,15 +1453,10 @@ User Input: "${expression}"`.trim();
 }
 
 function PaletteItem({ type, onClick, onDragStart, label, viewBoxOverride }) {
-  // Update: Prioritize IC_SVGS for rendering in Palette
   let displayIcon = null;
-
-  if (IC_SVGS[type]) {
-    displayIcon = IC_SVGS[type];
-  } else if (GATE_PATHS[type]) {
-    displayIcon = GATE_PATHS[type];
-  } else if (type.startsWith('CUSTOM_')) {
-      // Custom generic icon
+  if (IC_SVGS[type]) { displayIcon = IC_SVGS[type]; }
+  else if (GATE_PATHS[type]) { displayIcon = GATE_PATHS[type]; }
+  else if (type.startsWith('CUSTOM_')) {
       displayIcon = (
           <g>
             <rect x="10" y="5" width="80" height="70" rx="4" fill="white" stroke="currentColor" strokeWidth={2} />
@@ -1432,13 +1467,8 @@ function PaletteItem({ type, onClick, onDragStart, label, viewBoxOverride }) {
             <line x1="90" y1="50" x2="100" y2="50" stroke="currentColor" strokeWidth={2} />
           </g>
       );
-  } else {
-    // Fallback
-    displayIcon = GATE_PATHS['AND'];
-  }
-
+  } else { displayIcon = GATE_PATHS['AND']; }
   const vb = viewBoxOverride || "0 0 100 80";
-
   return (
     <div
       draggable={!!onDragStart}
