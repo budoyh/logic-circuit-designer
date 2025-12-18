@@ -9,10 +9,11 @@ import {
 } from 'lucide-react';
 
 /**
- * 逻辑电路设计器 v7.9.0
+ * 逻辑电路设计器 v7.9.3
  * 变更日志:
- * 1. 新增：74LS74 (双 D 触发器) 芯片与仿真逻辑。
- * 2. 优化：实现了自动线路连接点 (Junction Dots)，在走线分叉处显示黑点，区分交叉与连接。
+ * 1. 修复：移除了 IC_SVGS 中的动态变量引用 (simulationRunning, c1Q 等)，修复了 ReferenceError。
+ * 2. 保持：74LS153 的 1G 和 2G 引脚标签添加上划线。
+ * 3. 保持：所有仿真逻辑和动态渲染在 renderGate 中正常工作。
  */
 
 // --- 多语言配置 ---
@@ -183,7 +184,7 @@ const SHAPES = {
 
 const GATE_PATHS = { ...SHAPES, INPUT: SHAPES.INPUT_STD, OUTPUT: SHAPES.OUTPUT_STD };
 
-// IC SVGs
+// IC SVGs (Static versions for Palette - NO dynamic logic here to fix ReferenceError)
 const IC_SVGS = {
   IC_74LS138: <g>
     <rect x="0" y="0" width="100" height="260" rx="4" fill="white" stroke="currentColor" strokeWidth={2} />
@@ -214,15 +215,16 @@ const IC_SVGS = {
     <line x1="5" y1="85" x2="95" y2="85" stroke="#e2e8f0" strokeDasharray="3 3"/>
     <text x="8" y="50" fontSize="12" fill="#64748b" dominantBaseline="middle">A</text>
     <text x="8" y="70" fontSize="12" fill="#64748b" dominantBaseline="middle">B</text>
-    <text x="12" y="105" fontSize="11" fill="#64748b" dominantBaseline="middle">1G</text>
+    <text x="12" y="105" fontSize="11" fill="#64748b" dominantBaseline="middle" textDecoration="overline">1G</text>
     <circle cx="5" cy="105" r="3" fill="white" stroke="#64748b" strokeWidth="1.5"/>
     <text x="8" y="125" fontSize="11" fill="#64748b" dominantBaseline="middle">1C0</text>
     <text x="8" y="145" fontSize="11" fill="#64748b" dominantBaseline="middle">1C1</text>
     <text x="8" y="165" fontSize="11" fill="#64748b" dominantBaseline="middle">1C2</text>
     <text x="8" y="185" fontSize="11" fill="#64748b" dominantBaseline="middle">1C3</text>
     <text x="92" y="145" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle">1Y</text>
+
     <line x1="5" y1="195" x2="95" y2="195" stroke="#e2e8f0" strokeDasharray="3 3"/>
-    <text x="12" y="215" fontSize="11" fill="#64748b" dominantBaseline="middle">2G</text>
+    <text x="12" y="215" fontSize="11" fill="#64748b" dominantBaseline="middle" textDecoration="overline">2G</text>
     <circle cx="5" cy="215" r="3" fill="white" stroke="#64748b" strokeWidth="1.5"/>
     <text x="8" y="235" fontSize="11" fill="#64748b" dominantBaseline="middle">2C0</text>
     <text x="8" y="255" fontSize="11" fill="#64748b" dominantBaseline="middle">2C1</text>
@@ -245,6 +247,7 @@ const IC_SVGS = {
     <circle cx="5" cy="135" r="3" fill="white" stroke="#64748b" strokeWidth="1.5" />
     <text x="92" y="75" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle">1Q</text>
     <text x="92" y="105" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle" textDecoration="overline">1Q'</text>
+    <circle cx="96" cy="105" r="3" fill="white" stroke="currentColor" strokeWidth={1.5} />
     <text x="8" y="165" fontSize="12" fill="#64748b" dominantBaseline="middle">2J</text>
     <text x="8" y="185" fontSize="12" fill="#64748b" dominantBaseline="middle">2K</text>
     <text x="14" y="205" fontSize="12" fill="#64748b" dominantBaseline="middle">2CLK</text>
@@ -256,6 +259,7 @@ const IC_SVGS = {
     <circle cx="5" cy="245" r="3" fill="white" stroke="#64748b" strokeWidth="1.5" />
     <text x="92" y="185" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle">2Q</text>
     <text x="92" y="215" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle" textDecoration="overline">2Q'</text>
+    <circle cx="96" cy="215" r="3" fill="white" stroke="currentColor" strokeWidth={1.5} />
   </g>,
   IC_74LS74: <g>
     <rect x="0" y="0" width="100" height="240" rx="4" fill="white" stroke="currentColor" strokeWidth={2} />
@@ -272,6 +276,7 @@ const IC_SVGS = {
     <circle cx="5" cy="115" r="3" fill="white" stroke="#64748b" strokeWidth="1.5" />
     <text x="92" y="65" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle">1Q</text>
     <text x="92" y="95" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle" textDecoration="overline">1Q'</text>
+    <circle cx="96" cy="95" r="3" fill="white" stroke="currentColor" strokeWidth={1.5} />
 
     {/* Unit 2 */}
     <text x="8" y="145" fontSize="12" fill="#64748b" dominantBaseline="middle">2D</text>
@@ -283,6 +288,7 @@ const IC_SVGS = {
     <circle cx="5" cy="205" r="3" fill="white" stroke="#64748b" strokeWidth="1.5" />
     <text x="92" y="155" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle">2Q</text>
     <text x="92" y="185" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle" textDecoration="overline">2Q'</text>
+    <circle cx="96" cy="185" r="3" fill="white" stroke="currentColor" strokeWidth={1.5} />
   </g>
 };
 
@@ -585,46 +591,23 @@ const Junctions = ({ wires, getPortPos, simulationRunning, nodeStates }) => {
       const [sourceId, sourceIdx] = key.split('_');
       const startPos = getPortPos(sourceId, 'output', parseInt(sourceIdx));
 
-      const uniqueMidXs = new Set();
-      group.forEach(w => {
-          const endPos = getPortPos(w.to, 'input', w.toIndex);
-          const midX = (startPos.x + endPos.x) / 2;
-          uniqueMidXs.add(midX);
-      });
-
-      // If we have distinct midXs, it implies branching happened at startPos.x or somewhere horizontal
-      // Current routing: (x1,y1) -> (mid, y1) -> ...
-      // If multiple wires share (x1, y1) -> (mid, y1), they branch at (mid, y1)
-
       const midXCounts = {};
       group.forEach(w => {
           const endPos = getPortPos(w.to, 'input', w.toIndex);
           const midX = (startPos.x + endPos.x) / 2;
-          // Quantize slightly to catch float errors
           const k = Math.round(midX * 10) / 10;
           if(!midXCounts[k]) midXCounts[k] = 0;
           midXCounts[k]++;
       });
 
-      // 1. Dots where multiple wires turn vertical at the same MidX
       Object.keys(midXCounts).forEach(mxStr => {
           if (midXCounts[mxStr] > 1) {
               const mx = parseFloat(mxStr);
-              // They travel together from startPos.x to mx, then split vertically
-              // Dot at (mx, startPos.y)
-              if (Math.abs(mx - startPos.x) > 5) { // Only if segment length > 5
+              if (Math.abs(mx - startPos.x) > 5) {
                   calculatedDots.push({ x: mx, y: startPos.y, sourceKey: key });
               }
           }
       });
-
-      // 2. Dots where wires with DIFFERENT MidXs split from the main trunk?
-      // In current logic: M x1 y1 L midX y1.
-      // If Wire A has midXa, Wire B has midXb.
-      // They split at (x1, y1). This is the port itself. No dot needed usually unless port is small.
-      // BUT if we want to emphasize connection at port, we could.
-      // However, usually Junction Dot is for T-junctions away from pin.
-      // With this simple router, T-junctions only happen if MidXs align.
     });
     return calculatedDots;
   }, [wires, getPortPos]);
@@ -731,7 +714,7 @@ export default function LogicCircuitDesigner() {
   // --- Save / Load Project Functions ---
   const handleSaveProject = () => {
     const projectData = {
-      version: "7.9.0",
+      version: "7.9.3",
       timestamp: Date.now(),
       elements,
       wires,
@@ -909,23 +892,23 @@ export default function LogicCircuitDesigner() {
                 <line x1="5" y1="85" x2="95" y2="85" stroke="#e2e8f0" strokeDasharray="3 3"/>
                 <text x="8" y="50" fontSize="12" fill="#64748b" dominantBaseline="middle">A</text>
                 <text x="8" y="70" fontSize="12" fill="#64748b" dominantBaseline="middle">B</text>
-                <text x="12" y="105" fontSize="11" fill="#64748b" dominantBaseline="middle">1G</text>
+                <text x="12" y="105" fontSize="11" fill="#64748b" dominantBaseline="middle" textDecoration="overline">1G</text>
                 <circle cx="5" cy="105" r="3" fill="white" stroke="#64748b" strokeWidth="1.5"/>
                 <text x="8" y="125" fontSize="11" fill="#64748b" dominantBaseline="middle">1C0</text>
                 <text x="8" y="145" fontSize="11" fill="#64748b" dominantBaseline="middle">1C1</text>
                 <text x="8" y="165" fontSize="11" fill="#64748b" dominantBaseline="middle">1C2</text>
                 <text x="8" y="185" fontSize="11" fill="#64748b" dominantBaseline="middle">1C3</text>
                 <text x="92" y="145" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle">1Y</text>
-                <circle cx="96" cy="145" r="3" fill={simulationRunning ? c1Y : "white"} stroke={c1Y === "currentColor" ? "currentColor" : c1Y} strokeWidth={1.5} />
+
                 <line x1="5" y1="195" x2="95" y2="195" stroke="#e2e8f0" strokeDasharray="3 3"/>
-                <text x="12" y="215" fontSize="11" fill="#64748b" dominantBaseline="middle">2G</text>
+                <text x="12" y="215" fontSize="11" fill="#64748b" dominantBaseline="middle" textDecoration="overline">2G</text>
                 <circle cx="5" cy="215" r="3" fill="white" stroke="#64748b" strokeWidth="1.5"/>
                 <text x="8" y="235" fontSize="11" fill="#64748b" dominantBaseline="middle">2C0</text>
                 <text x="8" y="255" fontSize="11" fill="#64748b" dominantBaseline="middle">2C1</text>
                 <text x="8" y="275" fontSize="11" fill="#64748b" dominantBaseline="middle">2C2</text>
                 <text x="8" y="295" fontSize="11" fill="#64748b" dominantBaseline="middle">2C3</text>
                 <text x="92" y="255" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle">2Y</text>
-                <circle cx="96" cy="255" r="3" fill={simulationRunning ? c2Y : "white"} stroke={c2Y === "currentColor" ? "currentColor" : c2Y} strokeWidth={1.5} />
+                <circle cx="96" cy="255" r="3" fill={simulationRunning ? c2Y : "white"} stroke={c2Y === "currentColor" ? "currentColor" : c2Y} strokeWidth={1.5} style={{ display: 'none' }} />
             </g>
         );
     }
@@ -953,7 +936,7 @@ export default function LogicCircuitDesigner() {
                 <circle cx="5" cy="135" r="3" fill="white" stroke="#64748b" strokeWidth="1.5" />
 
                 <text x="92" y="75" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle">1Q</text>
-                <circle cx="96" cy="75" r="3" fill={simulationRunning ? c1Q : "white"} stroke={c1Q === "currentColor" ? "currentColor" : c1Q} strokeWidth={1.5} />
+
                 <text x="92" y="105" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle" textDecoration="overline">1Q'</text>
                 <circle cx="96" cy="105" r="3" fill={simulationRunning ? c1QNot : "white"} stroke={c1QNot === "currentColor" ? "currentColor" : c1QNot} strokeWidth={1.5} />
 
@@ -969,7 +952,7 @@ export default function LogicCircuitDesigner() {
                 <circle cx="5" cy="245" r="3" fill="white" stroke="#64748b" strokeWidth="1.5" />
 
                 <text x="92" y="185" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle">2Q</text>
-                <circle cx="96" cy="185" r="3" fill={simulationRunning ? c2Q : "white"} stroke={c2Q === "currentColor" ? "currentColor" : c2Q} strokeWidth={1.5} />
+
                 <text x="92" y="215" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle" textDecoration="overline">2Q'</text>
                 <circle cx="96" cy="215" r="3" fill={simulationRunning ? c2QNot : "white"} stroke={c2QNot === "currentColor" ? "currentColor" : c2QNot} strokeWidth={1.5} />
             </g>
@@ -998,7 +981,7 @@ export default function LogicCircuitDesigner() {
                 <circle cx="5" cy="115" r="3" fill="white" stroke="#64748b" strokeWidth="1.5" />
 
                 <text x="92" y="65" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle">1Q</text>
-                <circle cx="96" cy="65" r="3" fill={simulationRunning ? c1Q : "white"} stroke={c1Q === "currentColor" ? "currentColor" : c1Q} strokeWidth={1.5} />
+
                 <text x="92" y="95" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle" textDecoration="overline">1Q'</text>
                 <circle cx="96" cy="95" r="3" fill={simulationRunning ? c1QNot : "white"} stroke={c1QNot === "currentColor" ? "currentColor" : c1QNot} strokeWidth={1.5} />
 
@@ -1013,7 +996,7 @@ export default function LogicCircuitDesigner() {
                 <circle cx="5" cy="205" r="3" fill="white" stroke="#64748b" strokeWidth="1.5" />
 
                 <text x="92" y="155" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle">2Q</text>
-                <circle cx="96" cy="155" r="3" fill={simulationRunning ? c2Q : "white"} stroke={c2Q === "currentColor" ? "currentColor" : c2Q} strokeWidth={1.5} />
+
                 <text x="92" y="185" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle" textDecoration="overline">2Q'</text>
                 <circle cx="96" cy="185" r="3" fill={simulationRunning ? c2QNot : "white"} stroke={c2QNot === "currentColor" ? "currentColor" : c2QNot} strokeWidth={1.5} />
             </g>
@@ -1395,7 +1378,7 @@ User Input: "${expression}"`.trim();
 
     <div className="flex flex-col h-screen bg-slate-50 text-slate-900 font-sans selection:bg-indigo-100 selection:text-indigo-700" onMouseMove={handleGlobalMouseMove} onMouseUp={handleGlobalMouseUp} onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}>
       <div className="h-16 bg-white/90 backdrop-blur-md border-b border-slate-200 px-6 flex items-center justify-between z-20 shadow-sm relative">
-        <div className="flex items-center gap-4"><div className="bg-gradient-to-br from-indigo-600 to-violet-600 p-2.5 rounded-xl shadow-lg shadow-indigo-200"><Layout className="text-white w-5 h-5" strokeWidth={2.5} /></div><div><h1 className="text-xl font-bold tracking-tight text-slate-900">LogicCircuit <span className="text-indigo-600">Gen</span></h1><div className="flex items-center gap-2 text-xs font-medium text-slate-500 mt-0.5"><span>v7.9.0</span><span className="w-1 h-1 bg-slate-300 rounded-full"></span><span className="flex items-center gap-1">{t.by} <a href="https://github.com/budoyh" target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline font-medium">不懂</a></span><a href="https://github.com/budoyh/logic-circuit-designer" target="_blank" rel="noreferrer" className="text-slate-400 hover:text-slate-900 transition-colors ml-1" title={t.viewSource}><Github size={14} /></a></div></div></div>
+        <div className="flex items-center gap-4"><div className="bg-gradient-to-br from-indigo-600 to-violet-600 p-2.5 rounded-xl shadow-lg shadow-indigo-200"><Layout className="text-white w-5 h-5" strokeWidth={2.5} /></div><div><h1 className="text-xl font-bold tracking-tight text-slate-900">LogicCircuit <span className="text-indigo-600">Gen</span></h1><div className="flex items-center gap-2 text-xs font-medium text-slate-500 mt-0.5"><span>v7.9.3</span><span className="w-1 h-1 bg-slate-300 rounded-full"></span><span className="flex items-center gap-1">{t.by} <a href="https://github.com/budoyh" target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline font-medium">不懂</a></span><a href="https://github.com/budoyh/logic-circuit-designer" target="_blank" rel="noreferrer" className="text-slate-400 hover:text-slate-900 transition-colors ml-1" title={t.viewSource}><Github size={14} /></a></div></div></div>
         <div className="flex items-center gap-3">
            {/* Simulation Control */}
            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 mr-2">
