@@ -9,13 +9,13 @@ import {
 } from 'lucide-react';
 
 /**
- * 逻辑电路设计器 v7.10.0
+ * 逻辑电路设计器 v8.0.0
  * 变更日志:
- * 1. 新增：连线选择与删除功能。
- * - 点击连线可选中（高亮显示）。
- * - 按 Delete/Backspace 键删除选中连线。
- * 2. 优化：连线增加透明点击判定区，更容易点中。
- * 3. 保持：所有原有功能（Junction Dots, 74LS 系列芯片, 仿真等）。
+ * 1. 新增：手动拖拽连线 (Manual Wire Dragging)。
+ * - 在保留自动防重叠算法的基础上，允许用户按住连线并左右拖动来调整垂直通道位置。
+ * - 拖动时会有 10px 的网格吸附。
+ * 2. 修复：欢迎界面关闭按钮无法点击的问题。
+ * 3. 优化：版本号更新至 v8.0.0。
  */
 
 // --- 多语言配置 ---
@@ -64,8 +64,8 @@ const TRANSLATIONS = {
     guideTitle: "快速上手指南",
     guideStep1: "1. 智能生成：输入布尔公式自动生成电路。",
     guideStep2: "2. 电路仿真：点击顶部的 ▶ 按钮开启仿真，点击输入端子改变电平。",
-    guideStep3: "3. 智能对齐：拖动组件时会出现辅助线，帮助您手动对齐组件。",
-    guideStep4: "4. 连线管理：点击连线选中（变橙色），按 Delete 键删除连线。", // Updated
+    guideStep3: "3. 手动调整：拖动连线可调整其位置；拖动组件可利用辅助线对齐。", // Updated
+    guideStep4: "4. 连线管理：点击连线选中（变橙色），按 Delete 键删除连线。",
     moreInfo: "请访问作者主页查看详细使用文档。作者邮箱：budo0422@outlook.com",
     startUsing: "开始使用",
     language: "English",
@@ -132,8 +132,8 @@ const TRANSLATIONS = {
     guideTitle: "Quick Start Guide",
     guideStep1: "1. Auto Gen: Input boolean formulas to generate.",
     guideStep2: "2. Simulation: Click ▶ to start. Click Inputs to toggle voltage.",
-    guideStep3: "3. Smart Snap: Drag gates to see alignment guides for easy layout.",
-    guideStep4: "4. Wires: Click a wire to select (orange), press Delete to remove.", // Updated
+    guideStep3: "3. Manual Adjust: Drag wires to move them; Drag gates to align.", // Updated
+    guideStep4: "4. Wires: Click a wire to select (orange), press Delete to remove.",
     moreInfo: "Visit author's homepage for detailed docs. Email: budo0422@outlook.com",
     startUsing: "Start Designing",
     language: "中文",
@@ -318,13 +318,33 @@ const PORT_CONFIG = {
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
-const getManhattanPath = (x1, y1, x2, y2) => {
-  const midX = (x1 + x2) / 2;
+// --- New Function: Generate deterministic channel offset based on Index ---
+// This guarantees that no two wires (up to 15) ever share the same vertical track
+const getWireOffset = (index) => {
+    // 15 slots, centered around 0. Spacing 10px.
+    const slots = 15;
+    const spacing = 10;
+    return ((index % slots) - Math.floor(slots / 2)) * spacing;
+};
+
+// --- Updated Manhattan Path with Offset Support ---
+const getManhattanPath = (x1, y1, x2, y2, offset = 0) => {
+  const midX = (x1 + x2) / 2 + offset; // Apply offset to vertical segment
+
+  // Loop-back check (Target is to the left of Source)
   if (x2 < x1 + 20) {
-      const loopH = 60;
-      const loopW = 40;
-      return `M ${x1} ${y1} L ${x1 + loopW} ${y1} L ${x1 + loopW} ${y1 + loopH} L ${x2 - loopW} ${y1 + loopH} L ${x2 - loopW} ${y2} L ${x2} ${y2}`;
+      // For loop-backs, we need to push the vertical bar far to the right
+      // base clearance (40) + signed offset.
+      // We ensure the bar is at least 20px away from x1 to avoid clipping component
+      let loopX = x1 + 40 + offset;
+      if (loopX < x1 + 20) loopX = x1 + 20 + Math.abs(offset);
+
+      const loopH = 60 + Math.abs(offset); // Expand vertical loop height slightly
+
+      return `M ${x1} ${y1} L ${loopX} ${y1} L ${loopX} ${y1 + loopH} L ${x2 - 40} ${y1 + loopH} L ${x2 - 40} ${y2} L ${x2} ${y2}`;
   }
+
+  // Standard Z-shape path with offset mid-segment
   return `M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`;
 };
 
@@ -566,7 +586,7 @@ const simulateCircuit = (elements, wires, initialStates) => {
   return currentState;
 };
 
-// --- New Component: Junction Dots (Refined Logic) ---
+// --- Updated Component: Junction Dots (With Offset Logic) ---
 const Junctions = ({ wires, getPortPos, simulationRunning, nodeStates }) => {
   const dots = useMemo(() => {
     const dotsArr = [];
@@ -584,18 +604,27 @@ const Junctions = ({ wires, getPortPos, simulationRunning, nodeStates }) => {
         const [srcId, srcIdx] = key.split('_');
         const startPos = getPortPos(srcId, 'output', parseInt(srcIdx));
 
-        // Get all midXs (the vertical drop line X-coordinate)
+        // Get all midXs with offsets included
+        // We need to look up the index of each wire in the main wires array to get the correct offset
         const midXs = groupWires.map(w => {
+            const wireIndex = wires.findIndex(wire => wire.id === w.id); // Find global index
             const endPos = getPortPos(w.to, 'input', w.toIndex);
-            let midX = (startPos.x + endPos.x) / 2;
-            // Handle loop-back logic matching getManhattanPath
+
+            // MANUAL DRAG LOGIC
+            const offset = w.manualOffset !== undefined ? w.manualOffset : getWireOffset(wireIndex);
+
+            let midX = (startPos.x + endPos.x) / 2 + offset;
+
+            // Replicate the Loop-back logic
             if (endPos.x < startPos.x + 20) {
-                 midX = startPos.x + 40;
+                 let loopX = startPos.x + 40 + offset;
+                 if (loopX < startPos.x + 20) loopX = startPos.x + 20 + Math.abs(offset);
+                 midX = loopX;
             }
             return midX;
         });
 
-        // Count occurrences of each midX
+        // Count occurrences of each midX to find shared vertical drops
         const midXCounts = {};
         midXs.forEach(mx => {
             const rmx = Math.round(mx);
@@ -606,15 +635,9 @@ const Junctions = ({ wires, getPortPos, simulationRunning, nodeStates }) => {
 
         uniqueXs.forEach((x, index) => {
             const countHere = midXCounts[x];
-            // Check if any wire continues PAST this x (i.e. has a midX greater than this x)
             const continuesPast = uniqueXs.slice(index + 1).length > 0;
 
-            // Logic: Draw a dot if:
-            // 1. More than one wire splits UP/DOWN at this X (count > 1)
-            // OR
-            // 2. One wire turns here, but another continues horizontally (continuesPast)
             if (countHere > 1 || continuesPast) {
-                // Do not draw dot on the pin itself (rare, but avoids clutter)
                 if (Math.abs(x - startPos.x) > 1) {
                      dotsArr.push({ x, y: startPos.y, sourceKey: key });
                 }
@@ -671,8 +694,9 @@ export default function LogicCircuitDesigner() {
   const [history, setHistory] = useState([{ elements: [], wires: [] }]);
   const [historyStep, setHistoryStep] = useState(0);
 
-  // --- Wire Selection State (New) ---
+  // --- Wire Selection & Dragging State ---
   const [selectedWireId, setSelectedWireId] = useState(null);
+  const [draggingWireId, setDraggingWireId] = useState(null);
 
   const [alignmentGuides, setAlignmentGuides] = useState([]);
   const [editingNodeId, setEditingNodeId] = useState(null);
@@ -738,7 +762,6 @@ export default function LogicCircuitDesigner() {
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Prevent deletion when typing in inputs
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
       if (simulationRunning) return;
@@ -759,7 +782,7 @@ export default function LogicCircuitDesigner() {
   // --- Save / Load Project Functions ---
   const handleSaveProject = () => {
     const projectData = {
-      version: "7.10.0",
+      version: "8.0.0",
       timestamp: Date.now(),
       elements,
       wires,
@@ -807,7 +830,7 @@ export default function LogicCircuitDesigner() {
       const newState = !simulationRunning;
       setSimulationRunning(newState);
       if (newState) {
-          setSelectedWireId(null); // Clear selection on sim start
+          setSelectedWireId(null);
           const initial = {};
           elements.forEach(el => {
             if (el.type === 'VCC') initial[el.id] = 1;
@@ -946,6 +969,7 @@ export default function LogicCircuitDesigner() {
                 <text x="8" y="165" fontSize="11" fill="#64748b" dominantBaseline="middle">1C2</text>
                 <text x="8" y="185" fontSize="11" fill="#64748b" dominantBaseline="middle">1C3</text>
                 <text x="92" y="145" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle">1Y</text>
+                <circle cx="96" cy="145" r="3" fill={simulationRunning ? c1Y : "white"} stroke={c1Y === "currentColor" ? "currentColor" : c1Y} strokeWidth={1.5} style={{ display: 'none' }} />
 
                 <line x1="5" y1="195" x2="95" y2="195" stroke="#e2e8f0" strokeDasharray="3 3"/>
                 <text x="12" y="215" fontSize="11" fill="#64748b" dominantBaseline="middle" textDecoration="overline">2G</text>
@@ -1086,12 +1110,12 @@ export default function LogicCircuitDesigner() {
     setView(prev => ({ ...prev, k: newK }));
   };
   const startPan = (e) => {
-    if (draggingId !== null || connecting !== null) return;
+    if (draggingId !== null || connecting !== null || draggingWireId !== null) return; // Prevent pan when dragging wire
     setIsPanning(true);
     setPanStart({ x: e.clientX, y: e.clientY });
   };
 
-  // --- Smart Alignment Guides Logic ---
+  // --- Smart Alignment Guides Logic & Wire Dragging ---
   const handleGlobalMouseMove = (e) => {
     setMousePos({ x: e.clientX, y: e.clientY });
     if (isPanning) {
@@ -1100,6 +1124,26 @@ export default function LogicCircuitDesigner() {
       setView(prev => ({ ...prev, x: prev.x + dx, y: prev.y + dy }));
       setPanStart({ x: e.clientX, y: e.clientY });
       return;
+    }
+
+    if (draggingWireId) {
+        const wire = wires.find(w => w.id === draggingWireId);
+        if (wire) {
+             const startPos = getPortPos(wire.from, 'output', wire.fromIndex);
+             const endPos = getPortPos(wire.to, 'input', wire.toIndex);
+             const worldPos = getMouseWorldPos(e);
+
+             // Logic: midX = (start + end)/2 + offset
+             // offset = mouseX - (start + end)/2
+             const midPoint = (startPos.x + endPos.x) / 2;
+             let newOffset = worldPos.x - midPoint;
+
+             // Snap to grid (10px)
+             newOffset = Math.round(newOffset / 10) * 10;
+
+             setWires(prev => prev.map(w => w.id === draggingWireId ? { ...w, manualOffset: newOffset } : w));
+        }
+        return;
     }
 
     if (draggingId && !simulationRunning) {
@@ -1141,6 +1185,10 @@ export default function LogicCircuitDesigner() {
         if (currentEl && dragStartPos && (currentEl.x !== dragStartPos.x || currentEl.y !== dragStartPos.y)) {
            recordHistory(elements, wires);
         }
+      }
+      if (draggingWireId) {
+          recordHistory(elements, wires); // Record after wire drag
+          setDraggingWireId(null);
       }
 
       setDraggingId(null);
@@ -1435,7 +1483,7 @@ User Input: "${expression}"`.trim();
 
     <div className="flex flex-col h-screen bg-slate-50 text-slate-900 font-sans selection:bg-indigo-100 selection:text-indigo-700" onMouseMove={handleGlobalMouseMove} onMouseUp={handleGlobalMouseUp} onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}>
       <div className="h-16 bg-white/90 backdrop-blur-md border-b border-slate-200 px-6 flex items-center justify-between z-20 shadow-sm relative">
-        <div className="flex items-center gap-4"><div className="bg-gradient-to-br from-indigo-600 to-violet-600 p-2.5 rounded-xl shadow-lg shadow-indigo-200"><Layout className="text-white w-5 h-5" strokeWidth={2.5} /></div><div><h1 className="text-xl font-bold tracking-tight text-slate-900">LogicCircuit <span className="text-indigo-600">Gen</span></h1><div className="flex items-center gap-2 text-xs font-medium text-slate-500 mt-0.5"><span>v7.10.0</span><span className="w-1 h-1 bg-slate-300 rounded-full"></span><span className="flex items-center gap-1">{t.by} <a href="https://github.com/budoyh" target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline font-medium">不懂</a></span><a href="https://github.com/budoyh/logic-circuit-designer" target="_blank" rel="noreferrer" className="text-slate-400 hover:text-slate-900 transition-colors ml-1" title={t.viewSource}><Github size={14} /></a></div></div></div>
+        <div className="flex items-center gap-4"><div className="bg-gradient-to-br from-indigo-600 to-violet-600 p-2.5 rounded-xl shadow-lg shadow-indigo-200"><Layout className="text-white w-5 h-5" strokeWidth={2.5} /></div><div><h1 className="text-xl font-bold tracking-tight text-slate-900">LogicCircuit <span className="text-indigo-600">Gen</span></h1><div className="flex items-center gap-2 text-xs font-medium text-slate-500 mt-0.5"><span>v8.0.0</span><span className="w-1 h-1 bg-slate-300 rounded-full"></span><span className="flex items-center gap-1">{t.by} <a href="https://github.com/budoyh" target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline font-medium">不懂</a></span><a href="https://github.com/budoyh/logic-circuit-designer" target="_blank" rel="noreferrer" className="text-slate-400 hover:text-slate-900 transition-colors ml-1" title={t.viewSource}><Github size={14} /></a></div></div></div>
         <div className="flex items-center gap-3">
            {/* Simulation Control */}
            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 mr-2">
@@ -1547,7 +1595,7 @@ User Input: "${expression}"`.trim();
               <div className="absolute top-0 right-0 p-32 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
               <h2 className="text-3xl font-bold mb-2 relative z-10">{t.welcomeTitle}</h2>
               <p className="text-indigo-100 relative z-10">{t.subtitle}</p>
-              <button onClick={() => setShowWelcome(false)} className="absolute top-6 right-6 text-white/70 hover:text-white hover:bg-white/20 rounded-full p-1 transition-colors"><X size={24} /></button>
+              <button onClick={() => setShowWelcome(false)} className="absolute top-6 right-6 text-white/70 hover:text-white hover:bg-white/20 rounded-full p-1 transition-colors cursor-pointer z-50"><X size={24} /></button>
             </div>
             <div className="p-8">
               <div className="flex gap-6 mb-8">
@@ -1648,13 +1696,21 @@ User Input: "${expression}"`.trim();
                     color = (val === 1) ? WIRE_COLOR_HIGH : WIRE_COLOR_LOW;
                 }
                 const isSelected = wire.id === selectedWireId;
-                const pathData = getManhattanPath(startPos.x, startPos.y, endPos.x, endPos.y);
+
+                // --- MANUAL DRAG LOGIC ---
+                // If wire has manual offset, use it. Otherwise use auto offset.
+                const offset = wire.manualOffset !== undefined ? wire.manualOffset : getWireOffset(idx);
+
+                const pathData = getManhattanPath(startPos.x, startPos.y, endPos.x, endPos.y, offset);
 
                 return (
                   <g key={wire.id}
                      onMouseDown={(e) => {
                        e.stopPropagation();
-                       if (!simulationRunning) setSelectedWireId(wire.id);
+                       if (!simulationRunning) {
+                           setSelectedWireId(wire.id);
+                           setDraggingWireId(wire.id); // Start dragging
+                       }
                      }}
                      className="cursor-pointer group"
                   >
