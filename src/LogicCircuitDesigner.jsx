@@ -9,10 +9,9 @@ import {
 } from 'lucide-react';
 
 /**
- * 逻辑电路设计器 v8.2.0
+ * 逻辑电路设计器 v8.2.5
  * 变更日志:
- * 1. 新增七段数码管。
- * 2. 新增水印功能。
+ * 1. 水印功能优化。
  * 3. 基础功能保持不变。
  */
 
@@ -21,6 +20,8 @@ const TRANSLATIONS = {
   zh: {
     title: "逻辑电路生成器",
     by: "By",
+    opacity: "水印不透明度",
+    density: "水印间距 (密度)",
     viewSource: "查看源码",
     appearance: "外观",
     smartGen: "智能生成",
@@ -103,6 +104,8 @@ const TRANSLATIONS = {
     saveProject: "Save Project",
     openProject: "Open Project",
     clear: "Clear",
+    opacity: "Watermark Opacity",
+    density: "Watermark Spacing",
     reset: "Reset",
     undo: "Undo",
     redo: "Redo",
@@ -921,7 +924,12 @@ export default function LogicCircuitDesigner() {
   const [lang, setLang] = useState('zh');
   const [customChips, setCustomChips] = useState([]);
   const [showExportModal, setShowExportModal] = useState(false);
-  const [watermarkConfig, setWatermarkConfig] = useState({ text: "", enabled: true });
+  const [watermarkConfig, setWatermarkConfig] = useState({
+    text: "",
+    enabled: true,
+    opacity: 0.15, // 默认不透明度
+    spacing: 200   // 默认间距 (像素)
+  });
 
   // --- History State (Undo/Redo) ---
   const [history, setHistory] = useState([{ elements: [], wires: [] }]);
@@ -1656,21 +1664,26 @@ export default function LogicCircuitDesigner() {
     if (watermarkConfig.enabled && watermarkConfig.text) {
         const watermarkGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
         watermarkGroup.setAttribute("class", "watermark-layer");
-        watermarkGroup.style.opacity = "0.15"; // 半透明，不遮挡
+
+        // 🔥 修改点 1: 使用配置的透明度
+        watermarkGroup.style.opacity = watermarkConfig.opacity;
+
         watermarkGroup.style.pointerEvents = "none";
 
-        // 创建平铺图案
         const fontSize = 24;
-        const spacingX = 200;
-        const spacingY = 200;
+
+        // 🔥 修改点 2: 使用配置的间距
+        const spacingX = parseInt(watermarkConfig.spacing);
+        const spacingY = parseInt(watermarkConfig.spacing);
 
         // 简单的平铺算法覆盖整个 viewBox
         for (let x = viewBoxX; x < viewBoxX + width; x += spacingX) {
             for (let y = viewBoxY; y < viewBoxY + height; y += spacingY) {
+                // ... (中间创建 text 节点的代码保持不变) ...
                 const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
                 text.setAttribute("x", x);
                 text.setAttribute("y", y);
-                text.setAttribute("transform", `rotate(-45, ${x}, ${y})`); // 旋转45度
+                text.setAttribute("transform", `rotate(-45, ${x}, ${y})`);
                 text.setAttribute("text-anchor", "middle");
                 text.setAttribute("font-family", "Arial, sans-serif");
                 text.setAttribute("font-weight", "bold");
@@ -1680,8 +1693,6 @@ export default function LogicCircuitDesigner() {
                 watermarkGroup.appendChild(text);
             }
         }
-        // 将水印添加到最底层 (content-layer 之前) 或 最顶层
-        // 为了防篡改，放在最顶层 (appendChild)
         clone.appendChild(watermarkGroup);
     }
     // -----------------------
@@ -1933,18 +1944,57 @@ User Input: "${expression}"`.trim();
                         </div>
                     </div>
                     {watermarkConfig.enabled && (
-                        <div>
-                             <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider">{t.watermarkText}</label>
-                             <input
-                                type="text"
-                                value={watermarkConfig.text}
-                                onChange={e => setWatermarkConfig({...watermarkConfig, text: e.target.value})}
-                                className="w-full p-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm"
-                                placeholder={t.watermarkPlaceholder}
-                                autoFocus
-                             />
-                             <p className="text-[10px] text-slate-400 mt-2">
-                                * {lang === 'zh' ? '水印将以平铺方式嵌入图片，防止未授权复制。' : 'Watermark will be tiled across the image.'}
+                        <div className="space-y-4">
+                             {/* 1. 水印文字输入 */}
+                             <div>
+                                 <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider">{t.watermarkText}</label>
+                                 <input
+                                    type="text"
+                                    value={watermarkConfig.text}
+                                    onChange={e => setWatermarkConfig({...watermarkConfig, text: e.target.value})}
+                                    className="w-full p-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm"
+                                    placeholder={t.watermarkPlaceholder}
+                                 />
+                             </div>
+
+                             <div className="grid grid-cols-2 gap-4">
+                                 {/* 2. 透明度滑块 */}
+                                 <div>
+                                     <div className="flex justify-between mb-1">
+                                        <label className="text-[10px] font-bold text-slate-500 uppercase">{t.opacity}</label>
+                                        <span className="text-[10px] text-slate-400">{Math.round(watermarkConfig.opacity * 100)}%</span>
+                                     </div>
+                                     <input
+                                        type="range"
+                                        min="0.05"
+                                        max="1"
+                                        step="0.05"
+                                        value={watermarkConfig.opacity}
+                                        onChange={e => setWatermarkConfig({...watermarkConfig, opacity: parseFloat(e.target.value)})}
+                                        className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                                     />
+                                 </div>
+
+                                 {/* 3. 间距滑块 */}
+                                 <div>
+                                     <div className="flex justify-between mb-1">
+                                        <label className="text-[10px] font-bold text-slate-500 uppercase">{t.density}</label>
+                                        <span className="text-[10px] text-slate-400">{watermarkConfig.spacing}px</span>
+                                     </div>
+                                     <input
+                                        type="range"
+                                        min="100"
+                                        max="600"
+                                        step="20"
+                                        value={watermarkConfig.spacing}
+                                        onChange={e => setWatermarkConfig({...watermarkConfig, spacing: parseInt(e.target.value)})}
+                                        className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                                     />
+                                 </div>
+                             </div>
+
+                             <p className="text-[10px] text-slate-400 pt-1">
+                                * {lang === 'zh' ? '调整间距可以让水印更稀疏或更密集。' : 'Adjust spacing to make watermark sparse or dense.'}
                              </p>
                         </div>
                     )}
