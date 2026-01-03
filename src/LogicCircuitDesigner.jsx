@@ -9,10 +9,10 @@ import {
 } from 'lucide-react';
 
 /**
- * 逻辑电路设计器 v8.1.0
+ * 逻辑电路设计器 v8.2.0
  * 变更日志:
- * 1. 新增：74LS161 (4位二进制同步计数器)。
- * 2. 新增：74LS48 (BCD-七段译码器)。
+ * 1. 新增七段数码管。
+ * 2. 新增水印功能。
  * 3. 基础功能保持不变。
  */
 
@@ -85,6 +85,12 @@ const TRANSLATIONS = {
     snapEnabled: "吸附已启用",
     fileLoadError: "文件格式错误或损坏",
     confirmClear: "确定要清空画布吗？此操作可以被撤销。",
+    sevenSeg: "七段数码管",
+    exportSettings: "导出设置",
+    watermarkText: "水印文字",
+    addWatermark: "添加水印",
+    download: "下载图片",
+    watermarkPlaceholder: "请输入姓名或学号",
   },
   en: {
     title: "Logic Circuit Gen",
@@ -153,6 +159,12 @@ const TRANSLATIONS = {
     snapEnabled: "Snap Enabled",
     fileLoadError: "Invalid file format.",
     confirmClear: "Clear canvas? You can undo this.",
+    sevenSeg: "7-Segment Display",
+    exportSettings: "Export Settings",
+    watermarkText: "Watermark Text",
+    addWatermark: "Add Watermark",
+    download: "Download Image",
+    watermarkPlaceholder: "Enter name or ID",
   }
 };
 
@@ -395,7 +407,31 @@ const PORT_CONFIG = {
         { x: 100, y: 155 }, // f
         { x: 100, y: 175 }  // g
     ]
-  }
+  },
+  SEVEN_SEG: {
+    inputs: [
+      { x: 0, y: 20 },  // a
+      { x: 0, y: 40 },  // b
+      { x: 0, y: 60 },  // c
+      { x: 0, y: 80 },  // d
+      { x: 0, y: 100 }, // e
+      { x: 0, y: 120 }, // f
+      { x: 0, y: 140 }  // g
+    ],
+    outputs: []
+  },
+};
+
+// --- 数码管路径定义 (相对于中心点或偏移量) ---
+const SEGMENT_PATHS = {
+  // 这里的坐标是相对于组件内部绘图区域的
+  a: "M 20 10 L 60 10 L 55 16 L 25 16 Z",
+  b: "M 62 12 L 68 50 L 63 56 L 57 50 L 53 18 Z",
+  c: "M 62 64 L 68 102 L 62 110 L 53 102 L 57 70 Z",
+  d: "M 20 112 L 60 112 L 55 106 L 25 106 Z",
+  e: "M 18 64 L 23 102 L 18 110 L 10 102 L 13 70 Z",
+  f: "M 18 12 L 23 50 L 18 56 L 10 50 L 14 18 Z",
+  g: "M 20 60 L 60 60 L 64 56 L 60 52 L 20 52 L 16 56 Z"
 };
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -698,6 +734,13 @@ const simulateCircuit = (elements, wires, initialStates) => {
                       nextState[qKey] = qVal;
                       break;
                   }
+                  case 'SEVEN_SEG':
+                      // 关键修复：将输入端口的信号直接传递给内部状态
+                      // 这样 renderGate 里的 nodeStates[`${el.id}_${i}`] 才能读到值
+                      inputs.forEach((val, idx) => {
+                          outputs[idx] = val;
+                      });
+                      break;
                   case 'IC_74LS48': {
                       // Inputs: A, B, C, D, LT, RBI, BI
                       // Outputs: a, b, c, d, e, f, g
@@ -877,6 +920,8 @@ export default function LogicCircuitDesigner() {
   const [appearance, setAppearance] = useState({ simpleIO: false });
   const [lang, setLang] = useState('zh');
   const [customChips, setCustomChips] = useState([]);
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [watermarkConfig, setWatermarkConfig] = useState({ text: "", enabled: true });
 
   // --- History State (Undo/Redo) ---
   const [history, setHistory] = useState([{ elements: [], wires: [] }]);
@@ -970,7 +1015,7 @@ export default function LogicCircuitDesigner() {
   // --- Save / Load Project Functions ---
   const handleSaveProject = () => {
     const projectData = {
-      version: "8.1.0",
+      version: "8.2.0",
       timestamp: Date.now(),
       elements,
       wires,
@@ -1322,6 +1367,52 @@ export default function LogicCircuitDesigner() {
             </g>
         );
     }
+    if (el.type === 'SEVEN_SEG') {
+        // 映射输入引脚到段: 0->a, 1->b, 2->c, 3->d, 4->e, 5->f, 6->g
+        const segments = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
+
+        return (
+            <g>
+                {/* 外壳背景 */}
+                <rect x="0" y="0" width="90" height="160" rx="4" fill="#1e293b" stroke="currentColor" strokeWidth={2} />
+                <text x="45" y="15" textAnchor="middle" fontSize="10" fontWeight="bold" fill="#94a3b8">DISPLAY</text>
+
+                {/* 绘制 7 个段 */}
+                <g transform="translate(5, 15)"> {/* 内部偏移，让数码管居中 */}
+                    {segments.map((seg, i) => {
+                        // 获取输入状态 (默认为0)
+                        let isOn = false;
+                        if (simulationRunning) {
+                            const val = nodeStates[`${el.id}_${i}`];
+                            // 如果接了线且为高电平，或者未接线但逻辑判断需要(这里简化为只看输入)
+                            // 注意：这里假设是共阴极数码管（高电平亮）
+                            if (val === 1) isOn = true;
+                        }
+
+                        // 颜色逻辑: 亮起为鲜红，熄灭为暗红(模拟物理效果)或深灰
+                        const fillColor = isOn ? "#ef4444" : "#334155";
+                        const filter = isOn ? "drop-shadow(0 0 4px #ef4444)" : "none";
+
+                        return (
+                            <path
+                                key={seg}
+                                d={SEGMENT_PATHS[seg]}
+                                fill={fillColor}
+                                style={{ filter, transition: 'fill 0.1s' }}
+                            />
+                        );
+                    })}
+                </g>
+
+                {/* 绘制左侧输入引脚标签 */}
+                {segments.map((seg, i) => (
+                    <text key={`label-${i}`} x="5" y={20 + i * 20} fontSize="9" fill="#64748b" dominantBaseline="middle" textAnchor="start" style={{pointerEvents:'none'}}>
+                        {seg}
+                    </text>
+                ))}
+            </g>
+        );
+    }
     if (GATE_PATHS[el.type]) return GATE_PATHS[el.type];
     if (el.type.startsWith('CUSTOM_')) {
         const chip = customChips.find(c => c.id === el.type);
@@ -1514,42 +1605,94 @@ export default function LogicCircuitDesigner() {
       }
   };
 
-  const handleExport = () => {
+  const handleExportClick = () => {
+    setShowExportModal(true);
+  };
+
+  const processExport = () => {
     if (!svgRef.current) return;
     const clone = svgRef.current.cloneNode(true);
-    // Explicitly find and remove elements marked 'no-export'
+
+    // 清理 UI 元素
     const uiElements = clone.querySelectorAll(".no-export");
     uiElements.forEach(el => el.remove());
-
-    // Also remove any guides or helpers that might not have the class
     const guides = clone.querySelectorAll("line[stroke-dasharray='4 2']");
     guides.forEach(el => el.remove());
+    // 移除选中状态的高亮
+    clone.querySelectorAll("path, circle").forEach(el => {
+        if (el.getAttribute("stroke") === WIRE_COLOR_SELECTED) {
+            el.setAttribute("stroke", WIRE_COLOR_NEUTRAL);
+        }
+        if (el.getAttribute("fill") === WIRE_COLOR_SELECTED) {
+             el.setAttribute("fill", WIRE_COLOR_NEUTRAL);
+        }
+    });
 
     const gContent = clone.querySelector(".content-layer");
     if (gContent) gContent.setAttribute("transform", "");
+
+    // 计算包围盒
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    if (elements.length === 0) { minX = 0; minY = 0; maxX = 800; maxY = 600; }
     elements.forEach(el => {
         if (el.x < minX) minX = el.x;
         if (el.y < minY) minY = el.y;
-        if (el.x > maxX) maxX = el.x;
-        if (el.y > maxY) maxY = el.y;
+        if (el.x + 100 > maxX) maxX = el.x + 100; // 估算宽度
+        if (el.y + 100 > maxY) maxY = el.y + 100; // 估算高度
     });
+
     const padding = 100;
-    const width = (maxX - minX) + padding * 2 || 800;
-    const height = (maxY - minY) + padding * 2 || 600;
-    const viewBoxX = (minX - padding) || 0;
-    const viewBoxY = (minY - padding) || 0;
+    const width = (maxX - minX) + padding * 2;
+    const height = (maxY - minY) + padding * 2;
+    const viewBoxX = (minX - padding);
+    const viewBoxY = (minY - padding);
+
     clone.setAttribute('width', width);
     clone.setAttribute('height', height);
     clone.setAttribute('viewBox', `${viewBoxX} ${viewBoxY} ${width} ${height}`);
     clone.style.backgroundColor = "#F8FAFC";
+
+    // --- 核心修改：添加水印 ---
+    if (watermarkConfig.enabled && watermarkConfig.text) {
+        const watermarkGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        watermarkGroup.setAttribute("class", "watermark-layer");
+        watermarkGroup.style.opacity = "0.15"; // 半透明，不遮挡
+        watermarkGroup.style.pointerEvents = "none";
+
+        // 创建平铺图案
+        const fontSize = 24;
+        const spacingX = 200;
+        const spacingY = 200;
+
+        // 简单的平铺算法覆盖整个 viewBox
+        for (let x = viewBoxX; x < viewBoxX + width; x += spacingX) {
+            for (let y = viewBoxY; y < viewBoxY + height; y += spacingY) {
+                const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                text.setAttribute("x", x);
+                text.setAttribute("y", y);
+                text.setAttribute("transform", `rotate(-45, ${x}, ${y})`); // 旋转45度
+                text.setAttribute("text-anchor", "middle");
+                text.setAttribute("font-family", "Arial, sans-serif");
+                text.setAttribute("font-weight", "bold");
+                text.setAttribute("font-size", fontSize);
+                text.setAttribute("fill", "#000");
+                text.textContent = watermarkConfig.text;
+                watermarkGroup.appendChild(text);
+            }
+        }
+        // 将水印添加到最底层 (content-layer 之前) 或 最顶层
+        // 为了防篡改，放在最顶层 (appendChild)
+        clone.appendChild(watermarkGroup);
+    }
+    // -----------------------
+
     const svgData = new XMLSerializer().serializeToString(clone);
     const blob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const img = new Image();
     img.onload = () => {
       const canvas = document.createElement('canvas');
-      const scale = 3;
+      const scale = 2; // 导出 2 倍清晰度
       canvas.width = width * scale;
       canvas.height = height * scale;
       const ctx = canvas.getContext('2d');
@@ -1557,15 +1700,18 @@ export default function LogicCircuitDesigner() {
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.scale(scale, scale);
       ctx.drawImage(img, 0, 0);
+
       const pngUrl = canvas.toDataURL('image/png');
       const a = document.createElement('a');
-      a.download = 'logic_circuit.png';
+      a.download = `logic_circuit_${Date.now()}.png`;
       a.href = pngUrl;
       a.click();
-      a.revokeObjectURL(url);
+      URL.revokeObjectURL(url);
+      setShowExportModal(false); // 关闭弹窗
     };
     img.src = url;
   };
+
   const copyToClipboard = (text) => {
     const textArea = document.createElement("textarea");
     textArea.value = text;
@@ -1732,7 +1878,7 @@ User Input: "${expression}"`.trim();
 
     <div className="flex flex-col h-screen bg-slate-50 text-slate-900 font-sans selection:bg-indigo-100 selection:text-indigo-700" onMouseMove={handleGlobalMouseMove} onMouseUp={handleGlobalMouseUp} onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}>
       <div className="h-16 bg-white/90 backdrop-blur-md border-b border-slate-200 px-6 flex items-center justify-between z-20 shadow-sm relative">
-        <div className="flex items-center gap-4"><div className="bg-gradient-to-br from-indigo-600 to-violet-600 p-2.5 rounded-xl shadow-lg shadow-indigo-200"><Layout className="text-white w-5 h-5" strokeWidth={2.5} /></div><div><h1 className="text-xl font-bold tracking-tight text-slate-900">LogicCircuit <span className="text-indigo-600">Gen</span></h1><div className="flex items-center gap-2 text-xs font-medium text-slate-500 mt-0.5"><span>v8.1.0</span><span className="w-1 h-1 bg-slate-300 rounded-full"></span><span className="flex items-center gap-1">{t.by} <a href="https://github.com/budoyh" target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline font-medium">不懂</a></span><a href="https://github.com/budoyh/logic-circuit-designer" target="_blank" rel="noreferrer" className="text-slate-400 hover:text-slate-900 transition-colors ml-1" title={t.viewSource}><Github size={14} /></a></div></div></div>
+        <div className="flex items-center gap-4"><div className="bg-gradient-to-br from-indigo-600 to-violet-600 p-2.5 rounded-xl shadow-lg shadow-indigo-200"><Layout className="text-white w-5 h-5" strokeWidth={2.5} /></div><div><h1 className="text-xl font-bold tracking-tight text-slate-900">LogicCircuit <span className="text-indigo-600">Gen</span></h1><div className="flex items-center gap-2 text-xs font-medium text-slate-500 mt-0.5"><span>v8.2.0</span><span className="w-1 h-1 bg-slate-300 rounded-full"></span><span className="flex items-center gap-1">{t.by} <a href="https://github.com/budoyh" target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline font-medium">不懂</a></span><a href="https://github.com/budoyh/logic-circuit-designer" target="_blank" rel="noreferrer" className="text-slate-400 hover:text-slate-900 transition-colors ml-1" title={t.viewSource}><Github size={14} /></a></div></div></div>
         <div className="flex items-center gap-3">
            {/* Simulation Control */}
            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 mr-2">
@@ -1767,6 +1913,52 @@ User Input: "${expression}"`.trim();
            <button onClick={() => setShowWelcome(true)} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"><HelpCircle size={20} /></button>
         </div>
       </div>
+
+      {/* Export Settings Modal */}
+      {showExportModal && (
+        <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm z-[90] flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl w-[400px] overflow-hidden animate-in zoom-in-95 duration-200 border border-white/20 ring-1 ring-black/5">
+              <div className="flex justify-between items-center p-5 border-b border-slate-100">
+                  <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                      <ImageIcon size={18} className="text-indigo-500"/> {t.exportSettings}
+                  </h3>
+                  <button onClick={() => setShowExportModal(false)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+              </div>
+              <div className="p-6 space-y-4 bg-slate-50/50">
+                <div>
+                    <div className="flex justify-between items-center mb-2">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">{t.addWatermark}</label>
+                        <div className={`w-10 h-5 rounded-full p-0.5 cursor-pointer transition-colors ${watermarkConfig.enabled ? 'bg-indigo-600' : 'bg-slate-300'}`} onClick={() => setWatermarkConfig({...watermarkConfig, enabled: !watermarkConfig.enabled})}>
+                            <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${watermarkConfig.enabled ? 'translate-x-5' : 'translate-x-0'}`}></div>
+                        </div>
+                    </div>
+                    {watermarkConfig.enabled && (
+                        <div>
+                             <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider">{t.watermarkText}</label>
+                             <input
+                                type="text"
+                                value={watermarkConfig.text}
+                                onChange={e => setWatermarkConfig({...watermarkConfig, text: e.target.value})}
+                                className="w-full p-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm"
+                                placeholder={t.watermarkPlaceholder}
+                                autoFocus
+                             />
+                             <p className="text-[10px] text-slate-400 mt-2">
+                                * {lang === 'zh' ? '水印将以平铺方式嵌入图片，防止未授权复制。' : 'Watermark will be tiled across the image.'}
+                             </p>
+                        </div>
+                    )}
+                </div>
+              </div>
+              <div className="p-5 border-t border-slate-100 bg-white flex justify-end gap-3">
+                <button onClick={() => setShowExportModal(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors">{t.cancel}</button>
+                <button onClick={processExport} className="px-5 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium flex items-center gap-2 shadow-md transition-all hover:-translate-y-0.5">
+                    <Download size={16} /> {t.download}
+                </button>
+              </div>
+          </div>
+        </div>
+      )}
 
       {/* Manual Modal */}
       {showManual && (
@@ -1904,6 +2096,7 @@ User Input: "${expression}"`.trim();
               <PaletteItem type="IC_74LS74" onClick={() => addElement('IC_74LS74')} onDragStart={(e) => handleDragStart(e, 'IC_74LS74')} label="74LS74" viewBoxOverride="0 0 100 240"/>
               <PaletteItem type="IC_74LS161" onClick={() => addElement('IC_74LS161')} onDragStart={(e) => handleDragStart(e, 'IC_74LS161')} label="74LS161" viewBoxOverride="0 0 100 280"/>
               <PaletteItem type="IC_74LS48" onClick={() => addElement('IC_74LS48')} onDragStart={(e) => handleDragStart(e, 'IC_74LS48')} label="74LS48" viewBoxOverride="0 0 100 260"/>
+              <PaletteItem type="SEVEN_SEG" onClick={() => addElement('SEVEN_SEG')} onDragStart={(e) => handleDragStart(e, 'SEVEN_SEG')} label={t.sevenSeg} viewBoxOverride="0 0 90 160"/>
           </div></div>
 
           {/* My Chips Section */}
@@ -2070,22 +2263,28 @@ User Input: "${expression}"`.trim();
             </g>
           </svg>
 
+          {/* --- 底部悬浮工具栏 (包含修复后的导出按钮) --- */}
           <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-2 p-1.5 bg-white/80 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/40 ring-1 ring-black/5 z-30 transition-transform hover:scale-105 duration-300">
-             {/* Undo/Redo Buttons */}
+             {/* 撤销/重做区域 */}
              <div className="flex items-center gap-1 px-2 border-r border-slate-200/50">
                 <button onClick={handleUndo} disabled={historyStep <= 0} className={`p-2 rounded-xl transition-colors ${historyStep <= 0 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:text-indigo-600 hover:bg-white'}`} title={t.undo}><Undo size={18} /></button>
                 <button onClick={handleRedo} disabled={historyStep >= history.length - 1} className={`p-2 rounded-xl transition-colors ${historyStep >= history.length - 1 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:text-indigo-600 hover:bg-white'}`} title={t.redo}><Redo size={18} /></button>
              </div>
 
+             {/* 缩放控制区域 */}
              <div className="flex items-center gap-1 px-2 border-r border-slate-200/50">
                <button onClick={() => setView(v => ({ ...v, k: Math.max(0.2, v.k - 0.1) }))} className="p-2 hover:bg-white rounded-xl text-slate-500 hover:text-indigo-600 transition-colors"><ZoomOut size={18} /></button>
                <span className="text-xs font-bold text-slate-700 w-12 text-center select-none">{Math.round(view.k * 100)}%</span>
                <button onClick={() => setView(v => ({ ...v, k: Math.min(5, v.k + 0.1) }))} className="p-2 hover:bg-white rounded-xl text-slate-500 hover:text-indigo-600 transition-colors"><ZoomIn size={18} /></button>
              </div>
+
+             {/* 复位与清空 */}
              <button onClick={() => setView({ x: 0, y: 0, k: 1 })} className="p-2 hover:bg-white rounded-xl text-slate-500 hover:text-indigo-600 transition-colors group relative" title={t.reset}><RotateCcw size={18} /><span className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">{t.reset}</span></button>
              <button onClick={clearCanvas} disabled={simulationRunning} className={`p-2 rounded-xl transition-colors group relative ${simulationRunning ? 'text-slate-300 cursor-not-allowed' : 'hover:bg-red-50 text-slate-500 hover:text-red-500'}`} title={t.clear}><Trash2 size={18} /><span className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">{t.clear}</span></button>
              <div className="w-px h-6 bg-slate-200/50 mx-1"></div>
-             <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-medium transition-colors shadow-lg shadow-slate-200"><ImageIcon size={16} /><span>{t.export}</span></button>
+
+             {/* 👇 关键修复：这是正确的导出按钮代码 👇 */}
+             <button onClick={handleExportClick} className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-medium transition-colors shadow-lg shadow-slate-200"><ImageIcon size={16} /><span>{t.export}</span></button>
           </div>
         </div>
       </div>
