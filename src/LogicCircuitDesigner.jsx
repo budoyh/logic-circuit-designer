@@ -9,13 +9,11 @@ import {
 } from 'lucide-react';
 
 /**
- * 逻辑电路设计器 v8.0.0
+ * 逻辑电路设计器 v8.1.0
  * 变更日志:
- * 1. 新增：手动拖拽连线 (Manual Wire Dragging)。
- * - 在保留自动防重叠算法的基础上，允许用户按住连线并左右拖动来调整垂直通道位置。
- * - 拖动时会有 10px 的网格吸附。
- * 2. 修复：欢迎界面关闭按钮无法点击的问题。
- * 3. 优化：版本号更新至 v8.0.0。
+ * 1. 新增：74LS161 (4位二进制同步计数器)。
+ * 2. 新增：74LS48 (BCD-七段译码器)。
+ * 3. 基础功能保持不变。
  */
 
 // --- 多语言配置 ---
@@ -64,7 +62,7 @@ const TRANSLATIONS = {
     guideTitle: "快速上手指南",
     guideStep1: "1. 智能生成：输入布尔公式自动生成电路。",
     guideStep2: "2. 电路仿真：点击顶部的 ▶ 按钮开启仿真，点击输入端子改变电平。",
-    guideStep3: "3. 手动调整：拖动连线可调整其位置；拖动组件可利用辅助线对齐。", // Updated
+    guideStep3: "3. 手动调整：拖动连线可调整其位置；拖动组件可利用辅助线对齐。",
     guideStep4: "4. 连线管理：点击连线选中（变橙色），按 Delete 键删除连线。",
     moreInfo: "请访问作者主页查看详细使用文档。作者邮箱：budo0422@outlook.com",
     startUsing: "开始使用",
@@ -132,7 +130,7 @@ const TRANSLATIONS = {
     guideTitle: "Quick Start Guide",
     guideStep1: "1. Auto Gen: Input boolean formulas to generate.",
     guideStep2: "2. Simulation: Click ▶ to start. Click Inputs to toggle voltage.",
-    guideStep3: "3. Manual Adjust: Drag wires to move them; Drag gates to align.", // Updated
+    guideStep3: "3. Manual Adjust: Drag wires to move them; Drag gates to align.",
     guideStep4: "4. Wires: Click a wire to select (orange), press Delete to remove.",
     moreInfo: "Visit author's homepage for detailed docs. Email: budo0422@outlook.com",
     startUsing: "Start Designing",
@@ -282,6 +280,50 @@ const IC_SVGS = {
     <text x="92" y="155" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle">2Q</text>
     <text x="92" y="185" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle" textDecoration="overline">2Q'</text>
     <circle cx="96" cy="185" r="3" fill="white" stroke="currentColor" strokeWidth={1.5} />
+  </g>,
+  IC_74LS161: <g>
+    <rect x="0" y="0" width="100" height="280" rx="4" fill="white" stroke="currentColor" strokeWidth={2} />
+    <text x="50" y="25" textAnchor="middle" fontSize="14" fontWeight="bold" fill="#334155">74LS161</text>
+    <text x="12" y="55" fontSize="11" fill="#64748b" dominantBaseline="middle" textDecoration="overline">CLR</text>
+    <circle cx="5" cy="55" r="3" fill="white" stroke="#64748b" strokeWidth="1.5" />
+    <text x="12" y="75" fontSize="12" fill="#64748b" dominantBaseline="middle">CLK</text>
+    <path d="M 0 72 L 6 75 L 0 78" fill="none" stroke="#64748b" strokeWidth={1} />
+    <text x="8" y="105" fontSize="12" fill="#64748b" dominantBaseline="middle">A</text>
+    <text x="8" y="125" fontSize="12" fill="#64748b" dominantBaseline="middle">B</text>
+    <text x="8" y="145" fontSize="12" fill="#64748b" dominantBaseline="middle">C</text>
+    <text x="8" y="165" fontSize="12" fill="#64748b" dominantBaseline="middle">D</text>
+    <text x="8" y="195" fontSize="12" fill="#64748b" dominantBaseline="middle">ENP</text>
+    <text x="12" y="215" fontSize="11" fill="#64748b" dominantBaseline="middle" textDecoration="overline">LOAD</text>
+    <circle cx="5" cy="215" r="3" fill="white" stroke="#64748b" strokeWidth="1.5" />
+    <text x="8" y="235" fontSize="12" fill="#64748b" dominantBaseline="middle">ENT</text>
+
+    <text x="92" y="105" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle">QA</text>
+    <text x="92" y="125" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle">QB</text>
+    <text x="92" y="145" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle">QC</text>
+    <text x="92" y="165" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle">QD</text>
+    <text x="92" y="235" textAnchor="end" fontSize="12" fontWeight="bold" fill="#334155" dominantBaseline="middle">RCO</text>
+  </g>,
+  IC_74LS48: <g>
+    <rect x="0" y="0" width="100" height="260" rx="4" fill="white" stroke="currentColor" strokeWidth={2} />
+    <text x="50" y="25" textAnchor="middle" fontSize="14" fontWeight="bold" fill="#334155">74LS48</text>
+    <text x="8" y="55" fontSize="12" fill="#64748b" dominantBaseline="middle">A</text>
+    <text x="8" y="75" fontSize="12" fill="#64748b" dominantBaseline="middle">B</text>
+    <text x="8" y="95" fontSize="12" fill="#64748b" dominantBaseline="middle">C</text>
+    <text x="8" y="115" fontSize="12" fill="#64748b" dominantBaseline="middle">D</text>
+    <text x="12" y="145" fontSize="11" fill="#64748b" dominantBaseline="middle" textDecoration="overline">LT</text>
+    <circle cx="5" cy="145" r="3" fill="white" stroke="#64748b" strokeWidth="1.5" />
+    <text x="12" y="165" fontSize="11" fill="#64748b" dominantBaseline="middle" textDecoration="overline">RBI</text>
+    <circle cx="5" cy="165" r="3" fill="white" stroke="#64748b" strokeWidth="1.5" />
+    <text x="12" y="185" fontSize="11" fill="#64748b" dominantBaseline="middle">BI/RBO</text>
+    <circle cx="5" cy="185" r="3" fill="white" stroke="#64748b" strokeWidth="1.5" />
+
+    <text x="92" y="55" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle">a</text>
+    <text x="92" y="75" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle">b</text>
+    <text x="92" y="95" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle">c</text>
+    <text x="92" y="115" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle">d</text>
+    <text x="92" y="135" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle">e</text>
+    <text x="92" y="155" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle">f</text>
+    <text x="92" y="175" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle">g</text>
   </g>
 };
 
@@ -313,6 +355,46 @@ const PORT_CONFIG = {
   IC_74LS74: {
     inputs: [ { x: 0, y: 55 }, { x: 0, y: 75 }, { x: 0, y: 95 }, { x: 0, y: 115 }, { x: 0, y: 145 }, { x: 0, y: 165 }, { x: 0, y: 185 }, { x: 0, y: 205 } ],
     outputs: [ { x: 100, y: 65 }, { x: 100, y: 95 }, { x: 100, y: 155 }, { x: 100, y: 185 } ]
+  },
+  IC_74LS161: {
+    inputs: [
+        { x: 0, y: 55 }, // CLR
+        { x: 0, y: 75 }, // CLK
+        { x: 0, y: 105 }, // A
+        { x: 0, y: 125 }, // B
+        { x: 0, y: 145 }, // C
+        { x: 0, y: 165 }, // D
+        { x: 0, y: 195 }, // ENP
+        { x: 0, y: 215 }, // LOAD
+        { x: 0, y: 235 }  // ENT
+    ],
+    outputs: [
+        { x: 100, y: 105 }, // QA
+        { x: 100, y: 125 }, // QB
+        { x: 100, y: 145 }, // QC
+        { x: 100, y: 165 }, // QD
+        { x: 100, y: 235 }  // RCO
+    ]
+  },
+  IC_74LS48: {
+    inputs: [
+        { x: 0, y: 55 }, // A
+        { x: 0, y: 75 }, // B
+        { x: 0, y: 95 }, // C
+        { x: 0, y: 115 }, // D
+        { x: 0, y: 145 }, // LT
+        { x: 0, y: 165 }, // RBI
+        { x: 0, y: 185 }  // BI/RBO
+    ],
+    outputs: [
+        { x: 100, y: 55 }, // a
+        { x: 100, y: 75 }, // b
+        { x: 100, y: 95 }, // c
+        { x: 100, y: 115 }, // d
+        { x: 100, y: 135 }, // e
+        { x: 100, y: 155 }, // f
+        { x: 100, y: 175 }  // g
+    ]
   }
 };
 
@@ -568,6 +650,112 @@ const simulateCircuit = (elements, wires, initialStates) => {
                       updateD(inputs[4], inputs[5], inputs[6], inputs[7], 2, 3, `${el.id}_CLK2_PREV`, `${el.id}_Q2_VAL`);
                       break;
                   }
+                  case 'IC_74LS161': {
+                      // Inputs: 0:CLR, 1:CLK, 2:A, 3:B, 4:C, 5:D, 6:ENP, 7:LOAD, 8:ENT
+                      // Outputs: 0:QA, 1:QB, 2:QC, 3:QD, 4:RCO
+                      const CLR = inputs[0];
+                      const CLK = inputs[1];
+                      const A = inputs[2];
+                      const B = inputs[3];
+                      const C = inputs[4];
+                      const D = inputs[5];
+                      const ENP = inputs[6];
+                      const LOAD = inputs[7];
+                      const ENT = inputs[8];
+
+                      const clkKey = `${el.id}_CLK_PREV`;
+                      const qKey = `${el.id}_Q_VAL`; // Stores 0-15 integer
+
+                      let qVal = currentState[qKey] !== undefined ? currentState[qKey] : 0;
+                      const lastClk = currentState[clkKey] !== undefined ? currentState[clkKey] : 0;
+
+                      // Asynchronous Clear (Active Low)
+                      if (CLR === 0) {
+                          qVal = 0;
+                      } else {
+                          // Synchronous operations on rising edge
+                          if (lastClk === 0 && CLK === 1) {
+                              if (LOAD === 0) {
+                                  // Parallel Load
+                                  qVal = (D << 3) | (C << 2) | (B << 1) | A;
+                              } else {
+                                  // Count
+                                  if (ENP === 1 && ENT === 1) {
+                                      qVal = (qVal + 1) % 16;
+                                  }
+                              }
+                          }
+                      }
+
+                      // Update Outputs
+                      outputs[0] = (qVal & 1) ? 1 : 0; // QA
+                      outputs[1] = (qVal & 2) ? 1 : 0; // QB
+                      outputs[2] = (qVal & 4) ? 1 : 0; // QC
+                      outputs[3] = (qVal & 8) ? 1 : 0; // QD
+                      outputs[4] = (ENT === 1 && qVal === 15) ? 1 : 0; // RCO
+
+                      nextState[clkKey] = CLK;
+                      nextState[qKey] = qVal;
+                      break;
+                  }
+                  case 'IC_74LS48': {
+                      // Inputs: A, B, C, D, LT, RBI, BI
+                      // Outputs: a, b, c, d, e, f, g
+                      const A = inputs[0];
+                      const B = inputs[1];
+                      const C = inputs[2];
+                      const D = inputs[3];
+                      const LT = inputs[4];
+                      const RBI = inputs[5];
+                      const BI = inputs[6];
+
+                      const val = (D << 3) | (C << 2) | (B << 1) | A;
+
+                      // 7-segment logic (active high for 7448)
+                      // 1 = ON, 0 = OFF
+                      let segs = [0,0,0,0,0,0,0]; // a,b,c,d,e,f,g
+
+                      // Blanking Input (Active Low) overrides everything
+                      if (BI === 0) {
+                          segs = [0,0,0,0,0,0,0];
+                      } else if (LT === 0) {
+                          // Lamp Test (Active Low) - All ON
+                          segs = [1,1,1,1,1,1,1];
+                      } else if (RBI === 0 && val === 0) {
+                          // Ripple Blanking Input (Active Low) - Zero Suppression
+                          segs = [0,0,0,0,0,0,0];
+                      } else {
+                          // Standard Decode
+                          switch(val) {
+                              case 0: segs = [1,1,1,1,1,1,0]; break;
+                              case 1: segs = [0,1,1,0,0,0,0]; break;
+                              case 2: segs = [1,1,0,1,1,0,1]; break;
+                              case 3: segs = [1,1,1,1,0,0,1]; break;
+                              case 4: segs = [0,1,1,0,0,1,1]; break;
+                              case 5: segs = [1,0,1,1,0,1,1]; break;
+                              case 6: segs = [1,0,1,1,1,1,1]; break; // 7448 style 6 (often with tail)
+                              case 7: segs = [1,1,1,0,0,0,0]; break;
+                              case 8: segs = [1,1,1,1,1,1,1]; break;
+                              case 9: segs = [1,1,1,1,0,1,1]; break;
+                              case 10: segs = [0,0,0,1,1,0,1]; break; // Special symbol for 10
+                              case 11: segs = [0,0,1,1,0,0,1]; break; // Special symbol for 11
+                              case 12: segs = [0,1,0,0,0,1,1]; break; // Special symbol for 12
+                              case 13: segs = [1,0,0,1,0,1,1]; break; // Special symbol for 13
+                              case 14: segs = [0,0,0,1,1,1,1]; break; // Special symbol for 14
+                              case 15: segs = [0,0,0,0,0,0,0]; break; // Blank
+                              default: break;
+                          }
+                      }
+
+                      outputs[0] = segs[0];
+                      outputs[1] = segs[1];
+                      outputs[2] = segs[2];
+                      outputs[3] = segs[3];
+                      outputs[4] = segs[4];
+                      outputs[5] = segs[5];
+                      outputs[6] = segs[6];
+                      break;
+                  }
                   default: newVal = 0;
               }
           }
@@ -782,7 +970,7 @@ export default function LogicCircuitDesigner() {
   // --- Save / Load Project Functions ---
   const handleSaveProject = () => {
     const projectData = {
-      version: "8.0.0",
+      version: "8.1.0",
       timestamp: Date.now(),
       elements,
       wires,
@@ -1070,6 +1258,67 @@ export default function LogicCircuitDesigner() {
 
                 <text x="92" y="185" textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle" textDecoration="overline">2Q'</text>
                 <circle cx="96" cy="185" r="3" fill={simulationRunning ? c2QNot : "white"} stroke={c2QNot === "currentColor" ? "currentColor" : c2QNot} strokeWidth={1.5} />
+            </g>
+        );
+    }
+    if (el.type === 'IC_74LS161') {
+        return (
+            <g>
+                <rect x="0" y="0" width="100" height="280" rx="4" fill="white" stroke="currentColor" strokeWidth={2} />
+                <text x="50" y="25" textAnchor="middle" fontSize="14" fontWeight="bold" fill="#334155">74LS161</text>
+                <text x="12" y="55" fontSize="11" fill="#64748b" dominantBaseline="middle" textDecoration="overline">CLR</text>
+                <circle cx="5" cy="55" r="3" fill="white" stroke="#64748b" strokeWidth="1.5" />
+                <text x="12" y="75" fontSize="12" fill="#64748b" dominantBaseline="middle">CLK</text>
+                <path d="M 0 72 L 6 75 L 0 78" fill="none" stroke="#64748b" strokeWidth={1} />
+                <text x="8" y="105" fontSize="12" fill="#64748b" dominantBaseline="middle">A</text>
+                <text x="8" y="125" fontSize="12" fill="#64748b" dominantBaseline="middle">B</text>
+                <text x="8" y="145" fontSize="12" fill="#64748b" dominantBaseline="middle">C</text>
+                <text x="8" y="165" fontSize="12" fill="#64748b" dominantBaseline="middle">D</text>
+                <text x="8" y="195" fontSize="12" fill="#64748b" dominantBaseline="middle">ENP</text>
+                <text x="12" y="215" fontSize="11" fill="#64748b" dominantBaseline="middle" textDecoration="overline">LOAD</text>
+                <circle cx="5" cy="215" r="3" fill="white" stroke="#64748b" strokeWidth="1.5" />
+                <text x="8" y="235" fontSize="12" fill="#64748b" dominantBaseline="middle">ENT</text>
+
+                {[0,1,2,3].map(i => {
+                    const color = getICPinColor(i);
+                    return (
+                        <React.Fragment key={i}>
+                            <text x="92" y={105 + i*20} textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle">Q{String.fromCharCode(65+i)}</text>
+                            <circle cx="96" cy={105 + i*20} r="3" fill={simulationRunning ? color : "white"} stroke={color === "currentColor" ? "currentColor" : color} strokeWidth={1.5} />
+                        </React.Fragment>
+                    )
+                })}
+                {/* RCO */}
+                <text x="92" y="235" textAnchor="end" fontSize="12" fontWeight="bold" fill="#334155" dominantBaseline="middle">RCO</text>
+                <circle cx="96" cy="235" r="3" fill={simulationRunning ? getICPinColor(4) : "white"} stroke={getICPinColor(4) === "currentColor" ? "currentColor" : getICPinColor(4)} strokeWidth={1.5} />
+            </g>
+        );
+    }
+    if (el.type === 'IC_74LS48') {
+        return (
+            <g>
+                <rect x="0" y="0" width="100" height="260" rx="4" fill="white" stroke="currentColor" strokeWidth={2} />
+                <text x="50" y="25" textAnchor="middle" fontSize="14" fontWeight="bold" fill="#334155">74LS48</text>
+                <text x="8" y="55" fontSize="12" fill="#64748b" dominantBaseline="middle">A</text>
+                <text x="8" y="75" fontSize="12" fill="#64748b" dominantBaseline="middle">B</text>
+                <text x="8" y="95" fontSize="12" fill="#64748b" dominantBaseline="middle">C</text>
+                <text x="8" y="115" fontSize="12" fill="#64748b" dominantBaseline="middle">D</text>
+                <text x="12" y="145" fontSize="11" fill="#64748b" dominantBaseline="middle" textDecoration="overline">LT</text>
+                <circle cx="5" cy="145" r="3" fill="white" stroke="#64748b" strokeWidth="1.5" />
+                <text x="12" y="165" fontSize="11" fill="#64748b" dominantBaseline="middle" textDecoration="overline">RBI</text>
+                <circle cx="5" cy="165" r="3" fill="white" stroke="#64748b" strokeWidth="1.5" />
+                <text x="12" y="185" fontSize="11" fill="#64748b" dominantBaseline="middle">BI/RBO</text>
+                <circle cx="5" cy="185" r="3" fill="white" stroke="#64748b" strokeWidth="1.5" />
+
+                {['a','b','c','d','e','f','g'].map((char, i) => {
+                    const color = getICPinColor(i);
+                    return (
+                        <React.Fragment key={i}>
+                            <text x="92" y={55 + i*20} textAnchor="end" fontSize="14" fontWeight="bold" fill="#334155" dominantBaseline="middle">{char}</text>
+                            <circle cx="96" cy={55 + i*20} r="3" fill={simulationRunning ? color : "white"} stroke={color === "currentColor" ? "currentColor" : color} strokeWidth={1.5} />
+                        </React.Fragment>
+                    )
+                })}
             </g>
         );
     }
@@ -1483,7 +1732,7 @@ User Input: "${expression}"`.trim();
 
     <div className="flex flex-col h-screen bg-slate-50 text-slate-900 font-sans selection:bg-indigo-100 selection:text-indigo-700" onMouseMove={handleGlobalMouseMove} onMouseUp={handleGlobalMouseUp} onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}>
       <div className="h-16 bg-white/90 backdrop-blur-md border-b border-slate-200 px-6 flex items-center justify-between z-20 shadow-sm relative">
-        <div className="flex items-center gap-4"><div className="bg-gradient-to-br from-indigo-600 to-violet-600 p-2.5 rounded-xl shadow-lg shadow-indigo-200"><Layout className="text-white w-5 h-5" strokeWidth={2.5} /></div><div><h1 className="text-xl font-bold tracking-tight text-slate-900">LogicCircuit <span className="text-indigo-600">Gen</span></h1><div className="flex items-center gap-2 text-xs font-medium text-slate-500 mt-0.5"><span>v8.0.0</span><span className="w-1 h-1 bg-slate-300 rounded-full"></span><span className="flex items-center gap-1">{t.by} <a href="https://github.com/budoyh" target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline font-medium">不懂</a></span><a href="https://github.com/budoyh/logic-circuit-designer" target="_blank" rel="noreferrer" className="text-slate-400 hover:text-slate-900 transition-colors ml-1" title={t.viewSource}><Github size={14} /></a></div></div></div>
+        <div className="flex items-center gap-4"><div className="bg-gradient-to-br from-indigo-600 to-violet-600 p-2.5 rounded-xl shadow-lg shadow-indigo-200"><Layout className="text-white w-5 h-5" strokeWidth={2.5} /></div><div><h1 className="text-xl font-bold tracking-tight text-slate-900">LogicCircuit <span className="text-indigo-600">Gen</span></h1><div className="flex items-center gap-2 text-xs font-medium text-slate-500 mt-0.5"><span>v8.1.0</span><span className="w-1 h-1 bg-slate-300 rounded-full"></span><span className="flex items-center gap-1">{t.by} <a href="https://github.com/budoyh" target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline font-medium">不懂</a></span><a href="https://github.com/budoyh/logic-circuit-designer" target="_blank" rel="noreferrer" className="text-slate-400 hover:text-slate-900 transition-colors ml-1" title={t.viewSource}><Github size={14} /></a></div></div></div>
         <div className="flex items-center gap-3">
            {/* Simulation Control */}
            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 mr-2">
@@ -1647,7 +1896,15 @@ User Input: "${expression}"`.trim();
         <div className={`w-64 bg-white border-r border-slate-200 flex flex-col p-5 gap-8 overflow-y-auto z-10 shadow-[4px_0_24px_rgba(0,0,0,0.02)] transition-opacity duration-300 ${simulationRunning ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
           <div><h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2"><ArrowRightLeft size={12} /> {t.input} / {t.output}</h3><div className="grid grid-cols-2 gap-3"><PaletteItem type="INPUT" onClick={() => addElement('INPUT')} onDragStart={(e) => handleDragStart(e, 'INPUT')} label="Input" /><PaletteItem type="OUTPUT" onClick={() => addElement('OUTPUT')} onDragStart={(e) => handleDragStart(e, 'OUTPUT')} label="Output" /></div></div>
           <div><h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2"><Grid size={12} /> {t.basicGates}</h3><div className="grid grid-cols-2 gap-3"><PaletteItem type="AND" onClick={() => addElement('AND')} onDragStart={(e) => handleDragStart(e, 'AND')} /><PaletteItem type="OR" onClick={() => addElement('OR')} onDragStart={(e) => handleDragStart(e, 'OR')} /><PaletteItem type="NOT" onClick={() => addElement('NOT')} onDragStart={(e) => handleDragStart(e, 'NOT')} /><PaletteItem type="NAND" onClick={() => addElement('NAND')} onDragStart={(e) => handleDragStart(e, 'NAND')} /><PaletteItem type="NOR" onClick={() => addElement('NOR')} onDragStart={(e) => handleDragStart(e, 'NOR')} /><PaletteItem type="XOR" onClick={() => addElement('XOR')} onDragStart={(e) => handleDragStart(e, 'XOR')} /><PaletteItem type="XNOR" onClick={() => addElement('XNOR')} onDragStart={(e) => handleDragStart(e, 'XNOR')} /></div></div>
-          <div><h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2"><Cpu size={12} /> {t.integratedCircuits}</h3><div className="grid grid-cols-2 gap-3"><PaletteItem type="NAND4" onClick={() => addElement('NAND4')} onDragStart={(e) => handleDragStart(e, 'NAND4')} label="4-In NAND" /><PaletteItem type="IC_74LS138" onClick={() => addElement('IC_74LS138')} onDragStart={(e) => handleDragStart(e, 'IC_74LS138')} label="74LS138" viewBoxOverride="0 0 100 280"/><PaletteItem type="IC_74LS153" onClick={() => addElement('IC_74LS153')} onDragStart={(e) => handleDragStart(e, 'IC_74LS153')} label="74LS153" viewBoxOverride="0 0 100 340"/><PaletteItem type="IC_74LS112" onClick={() => addElement('IC_74LS112')} onDragStart={(e) => handleDragStart(e, 'IC_74LS112')} label="74LS112" viewBoxOverride="0 0 100 280"/><PaletteItem type="IC_74LS74" onClick={() => addElement('IC_74LS74')} onDragStart={(e) => handleDragStart(e, 'IC_74LS74')} label="74LS74" viewBoxOverride="0 0 100 240"/></div></div>
+          <div><h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2"><Cpu size={12} /> {t.integratedCircuits}</h3><div className="grid grid-cols-2 gap-3">
+              <PaletteItem type="NAND4" onClick={() => addElement('NAND4')} onDragStart={(e) => handleDragStart(e, 'NAND4')} label="4-In NAND" />
+              <PaletteItem type="IC_74LS138" onClick={() => addElement('IC_74LS138')} onDragStart={(e) => handleDragStart(e, 'IC_74LS138')} label="74LS138" viewBoxOverride="0 0 100 280"/>
+              <PaletteItem type="IC_74LS153" onClick={() => addElement('IC_74LS153')} onDragStart={(e) => handleDragStart(e, 'IC_74LS153')} label="74LS153" viewBoxOverride="0 0 100 340"/>
+              <PaletteItem type="IC_74LS112" onClick={() => addElement('IC_74LS112')} onDragStart={(e) => handleDragStart(e, 'IC_74LS112')} label="74LS112" viewBoxOverride="0 0 100 280"/>
+              <PaletteItem type="IC_74LS74" onClick={() => addElement('IC_74LS74')} onDragStart={(e) => handleDragStart(e, 'IC_74LS74')} label="74LS74" viewBoxOverride="0 0 100 240"/>
+              <PaletteItem type="IC_74LS161" onClick={() => addElement('IC_74LS161')} onDragStart={(e) => handleDragStart(e, 'IC_74LS161')} label="74LS161" viewBoxOverride="0 0 100 280"/>
+              <PaletteItem type="IC_74LS48" onClick={() => addElement('IC_74LS48')} onDragStart={(e) => handleDragStart(e, 'IC_74LS48')} label="74LS48" viewBoxOverride="0 0 100 260"/>
+          </div></div>
 
           {/* My Chips Section */}
           {customChips.length > 0 && (
@@ -1728,7 +1985,7 @@ User Input: "${expression}"`.trim();
               )}
               {elements.map(el => (
                 <g key={el.id} transform={`translate(${el.x},${el.y})`} onMouseDown={(e) => handleMouseDown(e, el.id, el.type)} className={`select-none group ${simulationRunning ? '' : 'cursor-move'}`}>
-                  <rect x="-10" y="-30" width={el.type.startsWith('INPUT') || el.type.startsWith('OUTPUT') || el.type === 'VCC' || el.type === 'GND' ? 60 : (el.type.startsWith('IC_') || el.type.startsWith('CUSTOM_') ? (el.type.startsWith('CUSTOM_') ? customChips.find(c=>c.id===el.type)?.width + 20 || 120 : 120) : 90)} height={el.type.startsWith('IC_') ? (el.type === 'IC_74LS138' || el.type === 'IC_74LS112' ? 300 : (el.type === 'IC_74LS74' ? 260 : 360)) : (el.type.startsWith('CUSTOM_') ? (customChips.find(c=>c.id===el.type)?.height + 40 || 100) : 100)} fill="transparent" stroke="transparent" />
+                  <rect x="-10" y="-30" width={el.type.startsWith('INPUT') || el.type.startsWith('OUTPUT') || el.type === 'VCC' || el.type === 'GND' ? 60 : (el.type.startsWith('IC_') || el.type.startsWith('CUSTOM_') ? (el.type.startsWith('CUSTOM_') ? customChips.find(c=>c.id===el.type)?.width + 20 || 120 : 120) : 90)} height={el.type.startsWith('IC_') ? (el.type === 'IC_74LS138' || el.type === 'IC_74LS112' || el.type === 'IC_74LS161' ? 300 : (el.type === 'IC_74LS74' ? 260 : (el.type === 'IC_74LS48' ? 260 : 360))) : (el.type.startsWith('CUSTOM_') ? (customChips.find(c=>c.id===el.type)?.height + 40 || 100) : 100)} fill="transparent" stroke="transparent" />
 
                   {renderGate(el)}
 
